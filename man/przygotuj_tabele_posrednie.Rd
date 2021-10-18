@@ -17,8 +17,7 @@ przygotuj_tabele_posrednie(
   przygotujP1 = TRUE,
   przygotujP2 = TRUE,
   przygotujP3 = TRUE,
-  przygotujP4 = przygotujP3,
-  wczytajDoBazy = TRUE
+  przygotujP4 = przygotujP3
 )
 }
 \arguments{
@@ -86,9 +85,6 @@ tabeli w ramach danego wywołania funkcji)}
 \emph{tabelę pośrednią} P4? (umożliwia wyłączenie przygotowania wybranej
 tabeli w ramach danego wywołania funkcji); aby tabela P4 mogła zostać
 przygotowana, konieczne jest również przygotowanie tabeli P3}
-
-\item{wczytajDoBazy}{opcjonalnie wartość logiczna - czy przeprowadzić zapis
-do bazy?}
 }
 \value{
 lista ramek danych z przygotowanymi tabelami
@@ -96,8 +92,9 @@ lista ramek danych z przygotowanymi tabelami
 \description{
 Na podstawie zawartych w bazie danych z tabel wejściowych
 funkcja przygotowuje 4 \emph{tablice pośrednie}, które zawierają zestawienia
-wskaźników bezpośrednio użytecznych analitycznie. Są one zwracane jako efekt
-działania funkcji, a domyślnie są też zapisywane do bazy.
+wskaźników bezpośrednio użytecznych analitycznie. Aby zapisać tak
+przygotowane tabele do relacyjnej bazy danych, należy następnie użyć funkcji
+\code{\link{wczytaj_tabele_posrednie}}.
 }
 \details{
 Dane zawarte w bazie powinny obejmować \strong{tylko jeden rok
@@ -114,4 +111,7 @@ konytynuacji nauki w tabeli P3 lub branżę kontynuacji nauki w tabeli P2
 zostały wzięte pod uwagę tylko kursy, które mają podaną datę zakończenia
 (co do tych, które nie mają jej podanej, nie da się rzetelnie rozstrzygać,
 czy zostały one ukończone, czy zarzucone).
+}
+\seealso{
+\code{\link{wczytaj_tabele_posrednie}}
 }

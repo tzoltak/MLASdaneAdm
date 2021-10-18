@@ -1,8 +1,9 @@
 #' @title Przygotowywanie tabel "posrednich"
 #' @description Na podstawie zawartych w bazie danych z tabel wejściowych
 #' funkcja przygotowuje 4 \emph{tablice pośrednie}, które zawierają zestawienia
-#' wskaźników bezpośrednio użytecznych analitycznie. Są one zwracane jako efekt
-#' działania funkcji, a domyślnie są też zapisywane do bazy.
+#' wskaźników bezpośrednio użytecznych analitycznie. Aby zapisać tak
+#' przygotowane tabele do relacyjnej bazy danych, należy następnie użyć funkcji
+#' \code{\link{wczytaj_tabele_posrednie}}.
 #' @param baza uchwyt połączenia do bazy lub lista argumentów do funkcji
 #' \code{\link[DBI]{dbConnect}} umożliwiających nawiązanie połączenia z bazą
 #' danych, w której mają zostać zapisane wczytwane dane
@@ -55,8 +56,6 @@
 #' \emph{tabelę pośrednią} P4? (umożliwia wyłączenie przygotowania wybranej
 #' tabeli w ramach danego wywołania funkcji); aby tabela P4 mogła zostać
 #' przygotowana, konieczne jest również przygotowanie tabeli P3
-#' @param wczytajDoBazy opcjonalnie wartość logiczna - czy przeprowadzić zapis
-#' do bazy?
 #' @details Dane zawarte w bazie powinny obejmować \strong{tylko jeden rok
 #' prowadzenia monitoringu}, ale mogą obejmować \strong{kilka różnych okresów od
 #' ukończenia szkoły}.
@@ -72,6 +71,7 @@
 #' (co do tych, które nie mają jej podanej, nie da się rzetelnie rozstrzygać,
 #' czy zostały one ukończone, czy zarzucone).
 #' @return lista ramek danych z przygotowanymi tabelami
+#' @seealso \code{\link{wczytaj_tabele_posrednie}}
 #' @importFrom dplyr %>% across add_count arrange bind_rows case_when
 #'                   collect copy_to distinct everything filter full_join
 #'                   group_by if_else inner_join left_join mutate n pull rename
@@ -89,7 +89,7 @@ przygotuj_tabele_posrednie <- function(
   imputujDateKoncaAdresu = as.Date(paste0(rokMonitoringu, "-05-31")),
   minDniEdukacjiWMiesiacu = 14,
   przygotujP1 = TRUE, przygotujP2 = TRUE, przygotujP3 = TRUE,
-  przygotujP4 = przygotujP3, wczytajDoBazy = TRUE)
+  przygotujP4 = przygotujP3)
 {
   stopifnot(is.list(baza) | inherits(baza, "DBIConnection"),
             is.numeric(rokMonitoringu), length(rokMonitoringu) == 1L,
@@ -108,8 +108,7 @@ przygotuj_tabele_posrednie <- function(
             length(przygotujP1) == 1L, przygotujP1 %in% c(FALSE, TRUE),
             length(przygotujP2) == 1L, przygotujP2 %in% c(FALSE, TRUE),
             length(przygotujP3) == 1L, przygotujP3 %in% c(FALSE, TRUE),
-            length(przygotujP4) == 1L, przygotujP4 %in% c(FALSE, TRUE),
-            length(wczytajDoBazy) == 1L, wczytajDoBazy %in% c(FALSE, TRUE))
+            length(przygotujP4) == 1L, przygotujP4 %in% c(FALSE, TRUE))
   if (przygotujP4 & !przygotujP3) {
     stop("Tabela P4 nie może zostać przygotowana bez przygotowania tabeli P3.")
   }
@@ -123,7 +122,7 @@ przygotuj_tabele_posrednie <- function(
   minDniEdukacjiWMiesiacu <- as.integer(minDniEdukacjiWMiesiacu)
   on.exit({if (!inherits(baza, "DBIConnection")) dbDisconnect(con)})
   tabelePosrednie <- list()
-  if (wczytajDoBazy) dbExecute(con, "BEGIN;")
+  cat("\nStart: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
 
   # Półfabrykaty do P1 i P2 ####################################################
   if (przygotujP1 | przygotujP2) {
@@ -257,23 +256,7 @@ przygotuj_tabele_posrednie <- function(
       arrange(id_abs, rok_abs, kod_zaw, okres_dyplom, rodzaj_dyplomu) %>%
       mutate(lp_dyplom = 1L:n()) %>%
       ungroup()
-    cat(" zakończone.")
-    if (wczytajDoBazy) {
-      cat("\nZapis tabeli P1 do bazy danych...")
-      dbExecute(con,
-                "INSERT INTO p1 (id_abs, rok_abs, rodzaj_dyplomu, dyplom_szczegoly,
-                                 okres_dyplom, lp_dyplom, kod_zaw, branza,
-                                 kod_zaw_dyplom, branza_dyplom, dziedzina,
-                                 dyscyplina_wiodaca)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
-                params = tabelePosrednie$p1 %>%
-                  select(id_abs, rok_abs, rodzaj_dyplomu, dyplom_szczegoly,
-                         okres_dyplom, lp_dyplom, kod_zaw, branza, kod_zaw_dyplom,
-                         branza_dyplom, dziedzina, dyscyplina_wiodaca) %>%
-                  as.list() %>%
-                  unname())
-      cat(" zakończony.")
-    }
+    cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # P2 (branża/dziedzina kontynuacji kształcenia) ##############################
   if (przygotujP2) {
@@ -386,22 +369,7 @@ przygotuj_tabele_posrednie <- function(
       arrange(id_abs, rok_abs, okres_kont, kod_zaw) %>%
       mutate(lp_kont = 1L:n()) %>%
       ungroup()
-    cat(" zakończone.")
-    if (wczytajDoBazy) {
-      cat("\nZapis tabeli P2 do bazy danych...")
-      dbExecute(con,
-                "INSERT INTO p2 (id_abs, rok_abs, okres_kont, lp_kont, kod_zaw,
-                           branza, branza_kont, dziedzina_kont,
-                           dyscyplina_wiodaca_kont, branza_kont_zrodlo)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-                params = tabelePosrednie$p2 %>%
-                  select(id_abs, rok_abs, okres_kont, lp_kont, kod_zaw, branza,
-                         branza_kont, dziedzina_kont, dyscyplina_wiodaca_kont,
-                         branza_kont_zrodlo) %>%
-                  as.list() %>%
-                  unname())
-      cat(" zakończony.")
-    }
+    cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # P3 (dane miesięczne) #######################################################
   if (przygotujP3) {
@@ -687,31 +655,7 @@ przygotuj_tabele_posrednie <- function(
                          !is.na(mlodoc_byl) & nauka == 1L ~ 4L)) %>%
       select(-rok_skladka, -mies_skladka, -praca_do_kont_mlodociany,
              -mlodoc_byl, -mlodoc_ten_sam_platnik)
-    cat(" zakończone.")
-    if (wczytajDoBazy) {
-      cat("\nZapis tabeli P3 do bazy danych...")
-      dbExecute(con,
-                "INSERT INTO p3 (id_abs, rok_abs, okres, zmarl, status_nieustalony,
-	                         praca, mlodociany, bezrobocie, bezrobocie_staz,
-	                         dziecko, biernosc, kont_mlodoc_prac, wynagrodzenie,
-	                         wynagrodzenie_uop, teryt_zam, powiat_bezrobocie,
-	                         powiat_sr_wynagrodzenie, nauka, nauka2, nauka_bs2st,
-	                         nauka_lodd, nauka_spolic, nauka_studia, nauka_kkz,
-	                         nauka_kuz)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                         $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-                         $25)",
-                params = tabelePosrednie$p3 %>%
-                  select(id_abs, rok_abs, okres, zmarl, status_nieustalony, praca,
-                         mlodociany, bezrobocie, bezrobocie_staz, dziecko, biernosc,
-                         kont_mlodoc_prac, wynagrodzenie, wynagrodzenie_uop,
-                         teryt_zam, powiat_bezrobocie, powiat_sr_wynagrodzenie,
-                         nauka, nauka2, nauka_bs2st, nauka_lodd, nauka_spolic,
-                         nauka_studia, nauka_kkz, nauka_kuz) %>%
-                  as.list() %>%
-                  unname())
-      cat(" zakończony.")
-    }
+    cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # P4 (dane stałe w czasie i kilka fikuśnych wskaźników) ######################
   if (przygotujP4) {
@@ -778,29 +722,9 @@ przygotuj_tabele_posrednie <- function(
                 by = c("id_abs", "rok_abs")) %>%
       mutate(across(starts_with("abs_w_"), ~if_else(is.na(.), FALSE, .)),
              across(starts_with("l_prac_"), ~if_else(is.na(.), 0L, .)))
-    cat(" zakończone.")
-    if (wczytajDoBazy) {
-      cat("\nZapis tabeli P4 do bazy danych...")
-      dbExecute(con,
-                "INSERT INTO p4 (id_abs, rok_abs, rok_ur, plec, id_szk, typ_szk,
-                           teryt_pow_szk, teryt_woj_szk, lp, kod_zaw, nazwa_zaw,
-                           branza, l_prac_ucz_uop, l_prac_nucz_uop,
-                           l_prac_nucz_nuop, zawod_sr_wynagrodzenie, abs_w_cke,
-                           abs_w_sio, abs_w_polon, abs_w_zus)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                         $14, $15, $16, $17, $18, $19, $20)",
-                params = tabelePosrednie$p4 %>%
-                  select(id_abs, rok_abs, rok_ur, plec, id_szk, typ_szk,
-                         teryt_pow_szk, teryt_woj_szk, lp, kod_zaw, nazwa_zaw,
-                         branza, l_prac_ucz_uop, l_prac_nucz_uop, l_prac_nucz_nuop,
-                         zawod_sr_wynagrodzenie, abs_w_cke, abs_w_sio, abs_w_polon,
-                         abs_w_zus) %>%
-                  as.list() %>%
-                  unname())
-      cat(" zakończony.")
-    }
+    cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
+  cat("\nKoniec: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
 
-  if (wczytajDoBazy) dbExecute(con, "COMMIT;")
   return(tabelePosrednie)
 }

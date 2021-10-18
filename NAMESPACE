@@ -3,6 +3,7 @@
 export(okres2rokmiesiac)
 export(przygotuj_tabele_posrednie)
 export(tabele_wejsciowe)
+export(wczytaj_tabele_posrednie)
 export(wczytaj_tabele_wejsciowe)
 importFrom(DBI,dbConnect)
 importFrom(DBI,dbDisconnect)

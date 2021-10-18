@@ -6,7 +6,7 @@
 \usage{
 wczytaj_tabele_wejsciowe(
   baza,
-  folder = "",
+  folder = ".",
   wczytajDoBazy = TRUE,
   zapiszProblemy = TRUE
 )

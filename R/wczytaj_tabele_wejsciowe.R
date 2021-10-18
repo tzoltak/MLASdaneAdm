@@ -24,7 +24,7 @@
 #'                   ungroup
 #' @importFrom tidyr pivot_wider
 #' @export
-wczytaj_tabele_wejsciowe = function(baza, folder = "", wczytajDoBazy = TRUE,
+wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                                     zapiszProblemy = TRUE) {
   stopifnot(is.list(baza) | inherits(baza, "DBIConnection"),
             dir.exists(folder),
@@ -67,6 +67,8 @@ wczytaj_tabele_wejsciowe = function(baza, folder = "", wczytajDoBazy = TRUE,
   if (sum(sapply(brakujaceKolumny, length)) > 0L) {
     stop("Brak wymaganych kolumn w co najmniej jednym z wczytywanych plików (p. informacje powyżej).")
   }
+  cat("\nPoczątek przetwarzania danych: ",
+      format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
   # identyfikowanie i wykluczanie ewidentnie zduplikowanych absolwentów ########
   cat("\nSzukanie zduplikowanych ID absolwenta...")
   duplikatyIdW2 <- tabeleWejsciowe$W2 %>%
@@ -620,11 +622,18 @@ wczytaj_tabele_wejsciowe = function(baza, folder = "", wczytajDoBazy = TRUE,
            MIES_SKLADKA = as.integer(substr(OKRES_ROZL, 4L, 5L)),
            CZY_30 = as.logical(CZY_30),
            CZY_RSA = as.logical(CZY_RSA)) %>%
-    group_by(ID_ABS, ROK_ABS, ROK_SKLADKA, MIES_SKLADKA, ID_PLATNIKA, KOD_ZUS,
-             CZY_30) %>%
-    summarise(CZY_RSA = CZY_RSA[which.max(PODST_CHOR)],
-              across(starts_with("PODST_"), max),
-              .groups = "drop")
+    add_count(ID_ABS, ROK_ABS, ROK_SKLADKA, MIES_SKLADKA, ID_PLATNIKA, KOD_ZUS)
+  tabeleWejsciowe$W16 <- bind_rows(
+    tabeleWejsciowe$W16 %>%
+      filter(n == 1) %>%
+      select(-n),
+    tabeleWejsciowe$W16 %>%
+      filter(n > 1) %>%
+      select(-n) %>%
+      group_by(ID_ABS, ROK_ABS, ROK_SKLADKA, MIES_SKLADKA, ID_PLATNIKA, KOD_ZUS) %>%
+      summarise(across(c(CZY_30, CZY_RSA), any, na.rm = TRUE),
+                across(starts_with("PODST_"), sum, na.rm = TRUE),
+                .groups = "drop"))
   kodyZusBezMapowania <- tabeleWejsciowe$W16 %>%
     select(KOD_ZUS) %>%
     anti_join(tabeleWejsciowe$W22 %>%
@@ -717,5 +726,6 @@ wczytaj_tabele_wejsciowe = function(baza, folder = "", wczytajDoBazy = TRUE,
     cat(" zakończony.")
   }
   dbExecute(con, "COMMIT;")
+  cat("\nKoniec: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
   invisible(NULL)
 }
