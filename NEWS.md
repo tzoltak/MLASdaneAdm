@@ -1,3 +1,9 @@
+# MLASdaneAdm 0.2.0 (3.11.2021)
+
+## Nowy wskaźnik
+
+- W *tabeli pośredniej* `p3` tworzonej przez `przygotuj_tabele_posrednie()` tworzony jest nowy wskaznik `nauka_szk_abs`, który wskazuje, czy w danym miesiącu dana osoba uczyła się jeszcze w szkole, jako absolwent której została objęta monitoringiem lub dany miesiąc zawierał się w okresie pomiędzy ukończeniem tej szkoły a podjęciem dalszej nauki w formie innej niż KKZ lub KUZ, najdalej w październiku roku zostania absolwentem. Odpowiednio zmodyfikowano też funkcję `wczytaj_tabele_posrednie()`.
+
 # MLASdaneAdm 0.1.1 (18.10.2021)
 
 ## Sposób obliczania wskaźników

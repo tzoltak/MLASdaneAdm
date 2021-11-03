@@ -65,19 +65,19 @@ wczytaj_tabele_posrednie <- function(tabelePosrednie, baza) {
 	                         praca, mlodociany, bezrobocie, bezrobocie_staz,
 	                         dziecko, biernosc, kont_mlodoc_prac, wynagrodzenie,
 	                         wynagrodzenie_uop, teryt_zam, powiat_bezrobocie,
-	                         powiat_sr_wynagrodzenie, nauka, nauka2, nauka_bs2st,
-	                         nauka_lodd, nauka_spolic, nauka_studia, nauka_kkz,
-	                         nauka_kuz)
+	                         powiat_sr_wynagrodzenie, nauka, nauka2, nauka_szk_abs,
+                           nauka_bs2st, nauka_lodd, nauka_spolic, nauka_studia,
+                           nauka_kkz, nauka_kuz)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
                          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-                         $25)",
+                         $25, $26)",
               params = tabelePosrednie$p3 %>%
                 select(id_abs, rok_abs, okres, zmarl, status_nieustalony, praca,
                        mlodociany, bezrobocie, bezrobocie_staz, dziecko, biernosc,
                        kont_mlodoc_prac, wynagrodzenie, wynagrodzenie_uop,
                        teryt_zam, powiat_bezrobocie, powiat_sr_wynagrodzenie,
-                       nauka, nauka2, nauka_bs2st, nauka_lodd, nauka_spolic,
-                       nauka_studia, nauka_kkz, nauka_kuz) %>%
+                       nauka, nauka2, nauka_szk_abs, nauka_bs2st, nauka_lodd,
+                       nauka_spolic, nauka_studia, nauka_kkz, nauka_kuz) %>%
                 as.list() %>%
                 unname())
     cat(" zakończony ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")

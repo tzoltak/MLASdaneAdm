@@ -376,6 +376,7 @@ CREATE TABLE p3 (
 	powiat_sr_wynagrodzenie real,
 	nauka int,
 	nauka2 int,
+	nauka_szk_abs int,
 	nauka_bs2st int,
 	nauka_lodd int,
 	nauka_spolic int,

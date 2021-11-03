@@ -637,6 +637,19 @@ przygotuj_tabele_posrednie <- function(
                   left_join(tMlodoc, by = c("id_abs", "rok_abs", "okres")),
                 by = c("id_abs", "rok_abs", "okres")) %>%
       left_join(t34512m, by = c("id_abs", "rok_abs", "okres")) %>%
+      mutate(nauka_szk_abs =
+               if_else(okres <= (12L*rok_abs + 6L), 1L, 0L)) %>%
+      group_by(id_abs, rok_abs) %>%
+      mutate(nauka_szk_abs =
+               if_else(okres >= (12L*rok_abs + 7L) &
+                         okres <= (12L*rok_abs + 9L) &
+                         (cumsum(ifelse(okres < (12L*rok_abs + 7L) |
+                                          okres > (12L*rok_abs + 9L),
+                                        0L, 1L)) < 0L | nauka2 == 0) &
+                         (cumsum(nauka2)[okres == (12L*rok_abs + 10L)] -
+                            cumsum(nauka2)) > 0,
+                       1L, nauka_szk_abs)) %>%
+      ungroup() %>%
       mutate(status_nieustalony =
                if_else(is.na(status_nieustalony), 1L, status_nieustalony),
              across(starts_with("nauka"), ~if_else(is.na(.), 0L, as.integer(.))),
@@ -654,7 +667,8 @@ przygotuj_tabele_posrednie <- function(
                            praca %in% c(1L, 4L, 5L, 7L) & mlodoc_ten_sam_platnik ~ 5L,
                          !is.na(mlodoc_byl) & nauka == 1L ~ 4L)) %>%
       select(-rok_skladka, -mies_skladka, -praca_do_kont_mlodociany,
-             -mlodoc_byl, -mlodoc_ten_sam_platnik)
+             -mlodoc_byl, -mlodoc_ten_sam_platnik) %>%
+      select(id_abs:nauka2, nauka_szk_abs, everything())
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # P4 (dane stałe w czasie i kilka fikuśnych wskaźników) ######################
