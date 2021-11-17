@@ -1,3 +1,9 @@
+# MLASdaneAdm 0.2.1 (17.11.2021)
+
+## Naprawione błedy
+
+- Domyślna wartość argumentu `okresyP2` funkcji `przygotuj_tabele_posrednie()` została zmieniona na opisującą grudnie od roku ukończenia szkoły do roku prowadzenia monitoringu (wcześniej okres ten był błędnie przesuniety o 1 rok wstecz).
+
 # MLASdaneAdm 0.2.0 (3.11.2021)
 
 ## Nowy wskaźnik

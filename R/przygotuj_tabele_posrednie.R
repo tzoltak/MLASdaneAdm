@@ -83,11 +83,11 @@
 przygotuj_tabele_posrednie <- function(
   baza, rokMonitoringu,
   okresOd = 0L, okresDo = 12L*rokMonitoringu + 5L,
-  okresyP2 = 12*((rokMonitoringu - 5):(rokMonitoringu - 1)),
+  okresyP2 = 12L*((rokMonitoringu - 4L):rokMonitoringu),
   imputujDateKoncaSzkoly = as.Date(paste0(rokMonitoringu, "-08-31")),
   imputujDateKoncaStudiow = as.Date(paste0(rokMonitoringu, "-09-30")),
   imputujDateKoncaAdresu = as.Date(paste0(rokMonitoringu, "-05-31")),
-  minDniEdukacjiWMiesiacu = 14,
+  minDniEdukacjiWMiesiacu = 14L,
   przygotujP1 = TRUE, przygotujP2 = TRUE, przygotujP3 = TRUE,
   przygotujP4 = przygotujP3)
 {
@@ -281,7 +281,7 @@ przygotuj_tabele_posrednie <- function(
                      month(data_od_szk_kont)):(12L*year(data_do_szk_kont) +
                                                  month(data_do_szk_kont)),
                 .groups = "drop") %>%
-      filter(okres_kont %in% okresyP2, okres_kont > 12L*(rok_abs - 1L),
+      filter(okres_kont %in% okresyP2, okres_kont > 12L*(rok_abs) - 1L,
              !is.na(branza_kont)) %>%
       select(-data_od_szk_kont, -data_do_szk_kont) %>%
       distinct() %>%
