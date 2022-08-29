@@ -56,6 +56,10 @@
 #' \emph{tabelę pośrednią} P4? (umożliwia wyłączenie przygotowania wybranej
 #' tabeli w ramach danego wywołania funkcji); aby tabela P4 mogła zostać
 #' przygotowana, konieczne jest również przygotowanie tabeli P3
+#' @param przygotujP5 opcjonalnie wartość logiczna - czy przygotować
+#' \emph{tabelę pośrednią} P5? (umożliwia wyłączenie przygotowania wybranej
+#' tabeli w ramach danego wywołania funkcji); aby tabela P5 mogła zostać
+#' przygotowana, konieczne jest również przygotowanie tabeli P3
 #' @details Dane zawarte w bazie powinny obejmować \strong{tylko jeden rok
 #' prowadzenia monitoringu}, ale mogą obejmować \strong{kilka różnych okresów od
 #' ukończenia szkoły}.
@@ -89,7 +93,7 @@ przygotuj_tabele_posrednie <- function(
   imputujDateKoncaAdresu = as.Date(paste0(rokMonitoringu, "-05-31")),
   minDniEdukacjiWMiesiacu = 14L,
   przygotujP1 = TRUE, przygotujP2 = TRUE, przygotujP3 = TRUE,
-  przygotujP4 = przygotujP3)
+  przygotujP4 = przygotujP3, przygotujP5 = TRUE)
 {
   stopifnot(is.list(baza) | inherits(baza, "DBIConnection"),
             is.numeric(rokMonitoringu), length(rokMonitoringu) == 1L,
@@ -108,7 +112,11 @@ przygotuj_tabele_posrednie <- function(
             length(przygotujP1) == 1L, przygotujP1 %in% c(FALSE, TRUE),
             length(przygotujP2) == 1L, przygotujP2 %in% c(FALSE, TRUE),
             length(przygotujP3) == 1L, przygotujP3 %in% c(FALSE, TRUE),
-            length(przygotujP4) == 1L, przygotujP4 %in% c(FALSE, TRUE))
+            length(przygotujP4) == 1L, przygotujP4 %in% c(FALSE, TRUE),
+            length(przygotujP5) == 1L, przygotujP5 %in% c(FALSE, TRUE))
+  if (przygotujP4 & !przygotujP1) {
+    stop("Tabela P4 nie może zostać przygotowana bez przygotowania tabeli P1.")
+  }
   if (przygotujP4 & !przygotujP3) {
     stop("Tabela P4 nie może zostać przygotowana bez przygotowania tabeli P3.")
   }
@@ -125,7 +133,7 @@ przygotuj_tabele_posrednie <- function(
   cat("\nStart: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
 
   # Półfabrykaty do P1 i P2 ####################################################
-  if (przygotujP1 | przygotujP2) {
+  if (przygotujP1 | przygotujP2 | przygotujP4) {
     # mapowanie kodów zawodów na branże i ew. obszary z preferencją na przypisanie
     # do branży (w sensie takiej z KZSB, w odróżnieniu od obszaru)
     t20 <- tbl(con, "w20") %>%
@@ -738,6 +746,50 @@ przygotuj_tabele_posrednie <- function(
              across(starts_with("l_prac_"), ~if_else(is.na(.), 0L, .)))
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
+  # P5 (absolwento-miesiąco-pracodawcy) ########################################
+  if (przygotujP5) {
+    cat("\nPrzygotowywanie tabeli P5...")
+    tabelePosrednie$p5 <- tbl(con, "w16") %>%
+      mutate(podst_maks = if_else(podst_chor > podst_wypad,
+                                  podst_chor, podst_wypad)) %>%
+      mutate(podst_maks = if_else(podst_maks > podst_emer,
+                                  podst_maks, podst_emer)) %>%
+      mutate(podst_maks = if_else(podst_maks > podst_zdrow,
+                                  podst_maks, podst_zdrow)) %>%
+      left_join(tbl(con, "w22") %>%
+                  select(kod_zus, etat = etat_ibe, netat = netat_ibe,
+                         samoz = samoz_ela, inne = inne_ela, mlodoc,
+                         bezrob_ela, bezrobotnystaz, dziecko, bierny_skladka),
+                by = "kod_zus") %>%
+      group_by(id_abs, rok_abs, id_platnika, rok_skladka, mies_skladka) %>%
+      summarise(
+        okres = 12L*rok_skladka + mies_skladka,
+        forma_zatrudnienia = case_when(
+          all(kod_zus %in% c(1298L, 1299L), na.rm = TRUE) ~ 0L, # tu płatnikiem jest ZUS
+          any(etat, na.rm = TRUE) ~ 1L,
+          any(samoz, na.rm = TRUE) ~ 2L,
+          any(netat, na.rm = TRUE) ~ 3L,
+          TRUE ~ 0L),
+        mlodociany = as.integer(any(mlodoc, na.rm = TRUE)),
+        wynagrodzenie = sum(podst_maks, na.rm = TRUE),
+        wynagrodzenie_uop = sum(podst_maks[etat], na.rm = TRUE),
+        .groups = "drop") %>%
+      filter(forma_zatrudnienia > 0L) %>%
+      left_join(tbl(con, "w18") %>%
+                  select(id_platnika, pkd),
+                by = "id_platnika") %>%
+      collect() %>%
+      mutate(pkd = sub("^([[:digit:]]{2})[[:digit:]]{2}([[:alpha:]])$",
+                       "\\1\\2", pkd)) %>%
+      select(id_abs, rok_abs, okres, lp_pracod = id_platnika, pkd_pracod = pkd,
+             forma_zatrudnienia, mlodociany, wynagrodzenie, wynagrodzenie_uop) %>%
+      arrange(id_abs, rok_abs, okres) %>%
+      group_by(id_abs, rok_abs) %>%
+      mutate(lp_pracod = as.numeric(factor(lp_pracod, unique(lp_pracod)))) %>%
+      ungroup()
+    cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
+  }
+  # kończenie ##################################################################
   cat("\nKoniec: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
 
   return(tabelePosrednie)

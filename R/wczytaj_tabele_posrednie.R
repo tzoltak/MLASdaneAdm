@@ -14,8 +14,10 @@
 #' @export
 wczytaj_tabele_posrednie <- function(tabelePosrednie, baza) {
   stopifnot(is.list(tabelePosrednie),
-            any(c("p1", "p2", "p3", "p4") %in% tolower(names(tabelePosrednie))),
-            all(tolower(names(tabelePosrednie)) %in% c("p1", "p2", "p3", "p4")),
+            any(c("p1", "p2", "p3", "p4", "p5") %in%
+                  tolower(names(tabelePosrednie))),
+            all(tolower(names(tabelePosrednie)) %in%
+                  c("p1", "p2", "p3", "p4", "p5")),
             all(sapply(tabelePosrednie, is.data.frame)),
             is.list(baza) | inherits(baza, "DBIConnection"))
   if (is.list(baza)) {
@@ -98,6 +100,21 @@ wczytaj_tabele_posrednie <- function(tabelePosrednie, baza) {
                        branza, l_prac_ucz_uop, l_prac_nucz_uop, l_prac_nucz_nuop,
                        zawod_sr_wynagrodzenie, abs_w_cke, abs_w_sio, abs_w_polon,
                        abs_w_zus) %>%
+                as.list() %>%
+                unname())
+    cat(" zakończony ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
+  }
+  if ("p5" %in% names(tabelePosrednie)) {
+    cat("\nZapis tabeli P5 do bazy danych...")
+    dbExecute(con,
+              "INSERT INTO p5 (id_abs, rok_abs, okres, lp_pracod, pkd_pracod,
+                               forma_zatrudnienia, mlodociany, wynagrodzenie,
+                               wynagrodzenie_uop)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+              params = tabelePosrednie$p5 %>%
+                select(id_abs, rok_abs, okres, lp_pracod, pkd_pracod,
+                       forma_zatrudnienia, mlodociany, wynagrodzenie,
+                       wynagrodzenie_uop) %>%
                 as.list() %>%
                 unname())
     cat(" zakończony ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")

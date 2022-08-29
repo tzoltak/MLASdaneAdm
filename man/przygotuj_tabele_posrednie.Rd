@@ -17,7 +17,8 @@ przygotuj_tabele_posrednie(
   przygotujP1 = TRUE,
   przygotujP2 = TRUE,
   przygotujP3 = TRUE,
-  przygotujP4 = przygotujP3
+  przygotujP4 = przygotujP3,
+  przygotujP5 = TRUE
 )
 }
 \arguments{
@@ -84,6 +85,11 @@ tabeli w ramach danego wywołania funkcji)}
 \item{przygotujP4}{opcjonalnie wartość logiczna - czy przygotować
 \emph{tabelę pośrednią} P4? (umożliwia wyłączenie przygotowania wybranej
 tabeli w ramach danego wywołania funkcji); aby tabela P4 mogła zostać
+przygotowana, konieczne jest również przygotowanie tabeli P3}
+
+\item{przygotujP5}{opcjonalnie wartość logiczna - czy przygotować
+\emph{tabelę pośrednią} P5? (umożliwia wyłączenie przygotowania wybranej
+tabeli w ramach danego wywołania funkcji); aby tabela P5 mogła zostać
 przygotowana, konieczne jest również przygotowanie tabeli P3}
 }
 \value{

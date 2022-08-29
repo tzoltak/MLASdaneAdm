@@ -17,11 +17,13 @@
 #' szkoły}.
 #' @return \code{NULL}
 #' @seealso \code{\link{tabele_wejsciowe}}
+#' @importFrom stats setNames
+#' @importFrom utils write.csv2
 #' @importFrom DBI dbConnect dbExecute dbDisconnect
 #' @importFrom dplyr %>% add_count anti_join arrange bind_rows case_when count
-#'                   distinct filter group_by if_else left_join mutate n
-#'                   n_distinct pull rename select semi_join slice summarise
-#'                   ungroup
+#'                   distinct filter group_by if_all if_else left_join matches
+#'                   mutate n n_distinct pull rename select semi_join slice
+#'                   summarise ungroup
 #' @importFrom tidyr pivot_wider
 #' @export
 wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
@@ -133,24 +135,62 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   tabeleWejsciowe$W11 <- tabeleWejsciowe$W11 %>%
     mutate(KOD_ZAW = case_when(tolower(KOD_ZAW) %in% "eksper." ~ 10101L,
                                TRUE ~ suppressWarnings(as.integer(KOD_ZAW))))
-  tabeleWejsciowe$W20a <- bind_rows(select(tabeleWejsciowe$W20, KOD_ZAW),
-                                select(tabeleWejsciowe$W2, KOD_ZAW),
-                                select(tabeleWejsciowe$W3, KOD_ZAW = KOD_ZAW_KONT),
-                                select(tabeleWejsciowe$W5, KOD_ZAW = KOD_ZAW_KUZ),
-                                select(tabeleWejsciowe$W6, KOD_ZAW = KOD_ZAW_CZEL),
-                                select(tabeleWejsciowe$W9, KOD_ZAW),
-                                select(tabeleWejsciowe$W11, KOD_ZAW)) %>%
+  tabeleWejsciowe$W20a <- list(W20 = select(tabeleWejsciowe$W20, KOD_ZAW),
+                               W2 = select(tabeleWejsciowe$W2, KOD_ZAW),
+                               W3 = select(tabeleWejsciowe$W3, KOD_ZAW = KOD_ZAW_KONT),
+                               W5 = select(tabeleWejsciowe$W5, KOD_ZAW = KOD_ZAW_KUZ),
+                               W6 = select(tabeleWejsciowe$W6, KOD_ZAW = KOD_ZAW_CZEL),
+                               W9 = select(tabeleWejsciowe$W9, KOD_ZAW),
+                               W11 = select(tabeleWejsciowe$W11, KOD_ZAW),
+                               W21 = select(tabeleWejsciowe$W21, KOD_ZAW))
+  nieliczboweKodyZawodow <- tabeleWejsciowe$W20a %>%
+    lapply(function(x) {return(class(x$KOD_ZAW))}) %>%
+    setdiff("integer")
+  if (length(nieliczboweKodyZawodow) > 0) {
+    message("\nWykryto następujące kody zawodów, niebędące liczbami całkowitymi:")
+  }
+  for (i in names(nieliczboweKodyZawodow)) {
+    tabeleWejsciowe[[i]] <- tabeleWejsciowe[[i]] %>%
+      mutate(across(starts_with("KOD_ZAW"), list(ORYG = identity)),
+             across(c(starts_with("KOD_ZAW"), -ends_with("_ORYG")),
+                    ~suppressWarnings(as.integer(KOD_ZAW_ORYG))))
+    message("- W pliku '", i, ".csv':\n  '",
+            paste(tabeleWejsciowe[[i]] %>%
+                    filter(if_all(c(starts_with("KOD_ZAW"), -ends_with("_ORYG")),
+                                  is.na),
+                           if_all(matches("^KOD_ZAW.*_ORYG$"),
+                                  Negate(is.na))) %>%
+                    pull(KOD_ZAW_ORYG) %>%
+                    unique(),
+                  collapse = "', "), "';")
+    tabeleWejsciowe[[i]] <- tabeleWejsciowe[[i]] %>%
+      select(-matches("^KOD_ZAW.*_ORYG$"))
+    tabeleWejsciowe$W20a[[i]] <- tabeleWejsciowe[[i]] %>%
+      select(starts_with("KOD_ZAW"))
+  }
+  tabeleWejsciowe$W20a <- tabeleWejsciowe$W20a %>%
+    bind_rows(.id = "tabela") %>%
     distinct() %>%
     filter(!is.na(KOD_ZAW))
   zawodyBezMapowania <- tabeleWejsciowe$W20a %>%
     anti_join(tabeleWejsciowe$W20, by = "KOD_ZAW") %>%
-    filter(!(KOD_ZAW %in% (10101L:10103L)))
+    filter(!(KOD_ZAW %in% c(100001L, 10101L:10103L))) %>%
+    group_by(KOD_ZAW) %>%
+    summarise(tabele = paste(tabela, collapse = ", "),
+              .groups = "drop")
+  tabeleWejsciowe$W20a <- tabeleWejsciowe$W20a %>%
+    select(KOD_ZAW) %>%
+    distinct()
   if (nrow(zawodyBezMapowania) > 0L) {
     message("\nWykryto następujące kody zawodów, dla których brak jest mapowania na branże:\n",
-            paste(zawodyBezMapowania$KOD_ZAW, collapse = ", "),
+            paste(zawodyBezMapowania %>%
+                    mutate(KOD_ZAW = paste0(KOD_ZAW, " (", tabele, ")")) %>%
+                    pull(KOD_ZAW),
+                  collapse = ", "),
             ".\nRozważ uzupełnienie mapowania w pliku 'W20aneks.csv'.")
     if (zapiszProblemy) {
-      write.csv2(zawodyBezMapowania, "kody-zawodów-bez-przypisania-do-branż.csv",
+      write.csv2(zawodyBezMapowania,
+                 "kody-zawodów-bez-przypisania-do-branż.csv",
                  row.names = FALSE, fileEncoding = "UTF-8")
     }
   }
@@ -205,7 +245,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     message("\nWykryto szkoły, w których te same osoby są absolwentami więcej niż jednego zawodu.",
             ifelse(zapiszProblemy,
                    "\nZestawienie tych szkół zostanie zapisane w pliku 'szkoły-z-multiabsolwentami.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_pliki_w()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
     if (zapiszProblemy) {
       write.csv2(multiAbsolwenci, "szkoły-z-multiabsolwentami.csv", row.names = FALSE,
                  fileEncoding = "UTF-8")
@@ -226,7 +266,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     message("\nWśród szkół, w których absolwenci kontynuują naukę wykryto takie, w których te same osoby są absolwentami więcej niż jednego zawodu.",
             ifelse(zapiszProblemy,
                    "\nZestawienie tych szkół zostanie zapisane w pliku 'szkoły-z-multiabsolwentami-kontynuacja-nauki.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_pliki_w()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
     if (zapiszProblemy) {
       write.csv2(multiAbsolwenciKont,
                  "szkoły-z-multiabsolwentami-kontynuacja-nauki.csv",
@@ -333,6 +373,20 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     cat(" zakończony.")
   }
   ## W6 (tytuły czeladnika) ####################################################
+  tabeleWejsciowe$W6 <- tabeleWejsciowe$W6 %>%
+    count(ID_ABS, ROK_ABS, KOD_ZAW_CZEL)
+  if (any(tabeleWejsciowe$W6$n > 1)) {
+    message("\nWśród danych o dyplomach czeladnika (W6) znaleziono powtórzone rekordy.",
+            ifelse(zapiszProblemy,
+                   "\nZestawienie tych szkół zostanie zapisane w pliku 'wielokrotni-czeladnicy.csv'.",
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+    if (zapiszProblemy) {
+      write.csv2(tabeleWejsciowe$W6 %>%
+                   filter(n > 1),
+                 "wielokrotni-czeladnicy.csv",
+                 row.names = FALSE, fileEncoding = "UTF-8")
+    }
+  }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W6 (tytuły czeladnika)...")
     dbExecute(con,
@@ -390,7 +444,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     message("\nWykryto osoby, które kilkakrotnie zdawały egzaminy na tę samą kwalifikację.",
             ifelse(zapiszProblemy,
                    "\nZestawienie tych osób i kwalifikacji zostanie zapisane w pliku 'wielokrotne-kwalifikacje.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to osoby i kwalifikacje, uruchom funkcję `wczytaj_pliki_w()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nJeżeli chcesz móc sprawdzić, które to osoby i kwalifikacje, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
     if (zapiszProblemy) {
       write.csv2(multiKwal,
                  "wielokrotne-kwalifikacje.csv",
@@ -440,12 +494,16 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     message("\nWykryto osoby, które kilkakrotnie uzyskały dyplom w tym samym zawodzie.",
             ifelse(zapiszProblemy,
                    "\nZestawienie tych osób i zawodów zostanie zapisane w pliku 'wielokrotne-dyplomy.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to osoby i zawody, uruchom funkcję `wczytaj_pliki_w()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nJeżeli chcesz móc sprawdzić, które to osoby i zawody, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
     if (zapiszProblemy) {
       write.csv2(multiDypZaw,
                  "wielokrotne-dyplomy.csv",
                  row.names = FALSE, fileEncoding = "UTF-8")
     }
+  }
+  if (any(is.na(tabeleWejsciowe$W9$KOD_ZAW)) ||
+      any(is.na(tabeleWejsciowe$W11$KOD_ZAW))) {
+    message("\nWykryto osoby, dla których w informacjach o dyplomie występują braki danych (najbardziej prawdopodobna przyczyna to, że są to zawody eksperymentalne).\nRekordy te nie zostaną zapisane do bazy.")
   }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W911 (dyplomy zawodowe)...")
@@ -456,6 +514,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                                  tabeleWejsciowe$W11) %>%
                 select(ID_ABS, ROK_ABS, KOD_ZAW, ROK_DYP, DOK_POTW_DYP,
                        DATA_DYP_ZAW) %>%
+                filter(!is.na(KOD_ZAW)) %>%
                 distinct() %>%
                 arrange(ID_ABS, ROK_ABS, KOD_ZAW, ROK_DYP, DATA_DYP_ZAW) %>%
                 group_by(ID_ABS, ROK_ABS, KOD_ZAW) %>%
@@ -464,6 +523,54 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                 as.list() %>%
                 unname())
     cat(" zakończony.")
+  }
+  ## Tabela do diagnozowania kompletności danych z OKE ########################
+  if (zapiszProblemy) {
+    tabeleWejsciowe$W2 %>%
+      filter(!is.na(KOD_ZAW)) %>%
+      group_by(ID_ABS, ROK_ABS, TYP_SZK) %>%
+      summarise(wojewodztwo = floor(TERYT_SZK / 100000),
+                .groups = "drop") %>%
+      left_join(tabeleWejsciowe$W16 %>%
+                  semi_join(tabeleWejsciowe$W22 %>%
+                              filter(MLODOC %in% 1) %>%
+                              select(KOD_ZUS = KOD) %>%
+                              mutate(KOD_ZUS = 100 * KOD_ZUS),
+                            by = "KOD_ZUS") %>%
+                  select(ID_ABS, ROK_ABS) %>%
+                  distinct() %>%
+                  mutate(mlodociany = TRUE),
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      mutate(TYP_SZK =
+               case_when(
+                 TYP_SZK == "Branżowa szkoła I stopnia" & mlodociany ~
+                   "Branżowa szkoła I stopnia - młodociani",
+                 TYP_SZK == "Branżowa szkoła I stopnia" ~
+                   "Branżowa szkoła I stopnia - inni",
+                 TRUE ~ TYP_SZK)) %>%
+      left_join(bind_rows(tabeleWejsciowe$W8,
+                          tabeleWejsciowe$W10) %>%
+                  select(ID_ABS, ROK_ABS) %>%
+                  distinct() %>%
+                  mutate(swiadectwo = 1),
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      left_join(bind_rows(tabeleWejsciowe$W9,
+                          tabeleWejsciowe$W11) %>%
+                  select(ID_ABS, ROK_ABS) %>%
+                  distinct() %>%
+                  mutate(dyplom = 1),
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      mutate(across(c(swiadectwo, dyplom), ~if_else(is.na(.), 0, .)),
+             tylko_swiadectwo = swiadectwo == 1 & dyplom == 0) %>%
+      group_by(wojewodztwo, TYP_SZK, ROK_ABS) %>%
+      summarise(across(c(swiadectwo, dyplom, tylko_swiadectwo), mean),
+                .groups = "drop") %>%
+      select(-swiadectwo) %>%
+      pivot_wider(names_from = TYP_SZK,
+                  names_sep = ": ", names_vary = "slowest",
+                  values_from = c(tylko_swiadectwo, dyplom)) %>%
+      write.csv2("kompletnosc-danych-o-egzaminach.csv",
+                 row.names = FALSE, fileEncoding = "UTF-8")
   }
   ## W13 (przypisanie kierunków studiów do dziedzin i dyscyplin) ###############
   tabeleWejsciowe$W13 <- tabeleWejsciowe$W13 %>%
@@ -641,7 +748,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
               by = "KOD_ZUS")
   if (nrow(kodyZusBezMapowania) > 0L) {
     message("\nWykryto następujące kody składek ZUS, dla których brak jest mapowania na użyteczne analitycznie kategorie:\n",
-            paste(kodyZusBezMapowania$KOD_ZUS, collapse = ", "),
+            paste(unique(kodyZusBezMapowania$KOD_ZUS), collapse = ", "),
             ".\nRozważ uzupełnienie mapowania w pliku 'W22.csv'.")
     if (zapiszProblemy) {
       write.csv2(zawodyBezMapowania, "kody-ZUS-niewystępujące-w-W22.csv",
@@ -692,7 +799,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
               by = "KOD_PRZERWY")
   if (nrow(kodyPrzerwBezMapowania) > 0L) {
     message("\nWykryto następujące kody przerw w opłacaniu składek ZUS, dla których brak jest mapowania na użyteczne analitycznie kategorie:\n",
-            paste(kodyPrzerwBezMapowania$KOD_PRZERWY, collapse = ", "),
+            paste(unique(kodyPrzerwBezMapowania$KOD_PRZERWY), collapse = ", "),
             ".\nRozważ uzupełnienie mapowania w pliku 'W23.csv'.")
     if (zapiszProblemy) {
       write.csv2(zawodyPrzerwMapowania, "kody-przerw-ZUS-niewystępujące-w-W23.csv",
