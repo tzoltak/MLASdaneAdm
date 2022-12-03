@@ -1,3 +1,11 @@
+# MLASdaneAdm 0.3.1 (3.12.2022)
+
+## Ulepszona diagnostyka
+
+- `wczytaj_tabele_wejsciowe()`:
+  - Sprawdza, czy w danych (`w2` i `w3`, w praktyce raczej w tej drugiej) występują kody typów szkół, dla których brak jest mapowania na nazwę typu szkoły w pliku 'STYPSZK.csv'.
+  - Sprawdza, czy w danych o kontynuacji kształcenia w szkołach objętych SIO (`w3`) występują rekordy, które najprawdopodobniej opisują naukę w szkole (i zawodzie), jako absolwent której dana osoba została objeta monitoringiem (wystąpienie takiej sytuacji traktowane jest jako błąd).
+
 # MLASdaneAdm 0.3.0 (29.08.2022)
 
 ## Nowe funkcjonalnośi:

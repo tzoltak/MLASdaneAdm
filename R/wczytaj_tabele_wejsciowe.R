@@ -25,6 +25,7 @@
 #'                   mutate n n_distinct pull rename select semi_join slice
 #'                   summarise ungroup
 #' @importFrom tidyr pivot_wider
+#' @importFrom lubridate year
 #' @export
 wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                                     zapiszProblemy = TRUE) {
@@ -71,6 +72,32 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   }
   cat("\nPoczątek przetwarzania danych: ",
       format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
+  # kody szkół, dla których brak mapowania #####################################
+  nieznaneKodySzkol <- full_join(tabeleWejsciowe$W2 %>%
+                                   count(TYP_SZK, name = "W2"),
+                                 tabeleWejsciowe$W3 %>%
+                                   rename(TYP_SZK = TYP_SZK_KONT) %>%
+                                   count(TYP_SZK, name = "W3"),
+                                 by = "TYP_SZK") %>%
+    anti_join(tabeleWejsciowe$STYPSZK,
+              by = "TYP_SZK") %>%
+    mutate(W2 = ifelse(is.na(W2), 0, W2),
+           W3 = ifelse(is.na(W3), 0, W3)) %>%
+    arrange(-W2, -W3)
+  if (nrow(nieznaneKodySzkol) > 0) {
+    stop("Wykryto kody szkół, dla których w pliku 'STYPSZK.csv' brak zdefiniowanego mapowania na nazwę typu szkoły:\n",
+         paste(apply(nieznaneKodySzkol, 1,
+                     function(x) {
+                       paste0("- ", x["TYP_SZK"], ":",
+                              ifelse(x["W2"] > 0,
+                                     paste0(" ", x["W2"], " (W2)"), ""),
+                              ifelse(x["W3"] > 0,
+                                     paste0(" ", x["W3"], " (W3)"), ""),
+                              ";") %>%
+                         return()
+                     }), collapse = "\n"),
+         "\nUzupełnij mapowania w pliku 'STYPSZK.csv'.")
+  }
   # identyfikowanie i wykluczanie ewidentnie zduplikowanych absolwentów ########
   cat("\nSzukanie zduplikowanych ID absolwenta...")
   duplikatyIdW2 <- tabeleWejsciowe$W2 %>%
@@ -292,6 +319,44 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     group_by(ID_ABS, ROK_ABS, ID_SZK_KONT, DATA_OD_SZK_KONT) %>%
     mutate(lp = 1L:n()) %>%
     ungroup()
+  # nauka w szkole, jako absolwent której ktoś został objety monitoringiem
+  # pojawiająca się w danych o kontynuowaniu nauki
+  # (spolic. z założenia wykluczane z zestawienia)
+  kontynuacjaWsteczna <- inner_join(tabeleWejsciowe$W2 %>%
+                                      select(ID_ABS, ROK_ABS, ID_SZK, TYP_SZK,
+                                             KOD_ZAW) %>%
+                                      distinct(),
+                                    tabeleWejsciowe$W3 %>%
+                                      select(ID_ABS, ROK_ABS, ID_SZK_KONT,
+                                             DATA_OD_SZK_KONT, DATA_DO_SZK_KONT,
+                                             KOD_ZAW_KONT) %>%
+                                      distinct(),
+                                    by = c("ID_ABS", "ROK_ABS")) %>%
+    mutate(dlNauki = case_when(TYP_SZK == "Branżowa szkoła I stopnia" ~ 3,
+                               TYP_SZK == "Branżowa szkoła II stopnia" ~ 2,
+                               TYP_SZK == "Technikum" & ROK_ABS < 2024 ~ 4,
+                               TYP_SZK == "Liceum ogólnokształcące" & ROK_ABS < 2023 ~ 3,
+                               TYP_SZK == "Technikum" ~ 5,
+                               TYP_SZK == "Liceum ogólnokształcące" ~ 4,
+                               TYP_SZK == "Szkoła specjalna przysposabiająca do pracy" ~ 3,
+                               TYP_SZK == "Bednarska Szkoła Realna" & ROK_ABS < 2024 ~ 4,
+                               TYP_SZK == "Bednarska Szkoła Realna" ~ 5)) %>%
+    filter(ID_SZK_KONT == ID_SZK, KOD_ZAW_KONT %in% KOD_ZAW,
+           TYP_SZK != "Szkoła policealna",
+           year(DATA_OD_SZK_KONT) >= (ROK_ABS - dlNauki),
+           DATA_DO_SZK_KONT <= as.Date(paste0(ROK_ABS, "-08-31"))) %>%
+    select(-dlNauki)
+  if (nrow(kontynuacjaWsteczna) > 0L) {
+    message("\nWśród danych o kontynuacji nauki zidentyfikowano rekordy, które wedle wszelkiego prawdopodobieństwa opisują naukę w szkole (i zawodzie), jako absolwent której dana osoba została objęta monitoringiem.",
+            ifelse(zapiszProblemy,
+                   "\nZestawienie tych rekordów zostanie zapisane w pliku 'nauka-w-szkole-ktorej-absolwentem-w-kontynuacji-nauki.csv'.\nUwaga, z założenia nie obejmuje ono szkół policealnych, może też nie obejmować uczniów, którzy powtarzali klasę i pewnie jeszcze jakichś innych mniej typowych przypadków.",
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+    if (zapiszProblemy) {
+      write.csv2(kontynuacjaWsteczna,
+                 "nauka-w-szkole-ktorej-absolwentem-w-kontynuacji-nauki.csv",
+                 row.names = FALSE, fileEncoding = "UTF-8")
+    }
+  }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W3 (kontynuacja nauki w szkołach objętych SIO)...")
     dbExecute(con,

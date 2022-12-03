@@ -33,15 +33,16 @@ Pakiet udostępnia obecnie trzy podstawowe funkcje:
     2) *p2* - zestawienie zawodu i branży, w której absolwent kształcił się w ukończonej szkole z branżami lub dziedzinami i dyscyplinami, w których kontynuuje on potem edukację (o ile ją kontynuuje) w wybranych punktach czasu (miesiącach),
     3) *p3* - miesięczne dane o statusach edukacyjnych i zawodowych oraz dane o wynagrodzeniach,
     4) *p4* - zestawienie stałych w czasie cech absolwenta i wskaźników obliczonych na podstawie całego okresu od ukończenia przez niego szkoły,
+    5) *p5* - zestawienie charakterytyk opisujących miesiąco-miejsca zatrudnienia, na podstawie którego można obliczać wskaźniki stałości zatrudnienia (od edycji monitoringu 2022),
 3.  `wczytaj_tabele_posrednie()` odpowiada za zapisanie do relacyjnej bazy danych *tabel pośrednich* powstałych w wyniku użycia funkcji `przygotuj_tabele_posrednie()`.
 
 `wczytaj_tabele_wejsciowe()` wymaga wskazania lokalizacji folderu z plikami CSV zawierającymi dane, które mają zostać wczytane do bazy oraz danych niezbędnych do połączenia się z bazą (p. następna sekcja). Funkcja nic nie zwraca, niemniej domyślnie generuje w katalogu roboczym pliki CSV zawierające zestawienia problematycznych danych (uwaga, ich występowanie **nie** uniemożliwia wczytania danych do bazy i ich dalszego przetwarzania! niemniej w ostatecznym rozrachunku rzutuje na trafność i rzetelność wskaźników).
 
--   Wczytanie danych z monitoringu 2021 r. do działającej lokalnie bazy PostgreSQL 10.1 na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ trwa 35-40 minut.
+-   Wczytanie danych z monitoringu 2021 r. do działającej lokalnie bazy PostgreSQL 10.1 na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ trwa 35-40 minut (w konfiguracji z 32 GB RAM i procesorem Ryzen 5 5600H dane z monitoringu 2022 r. wczytywały się ~30 minut).
 
 `przygotuj_tabele_posrednie()` wymaga jedynie przekazania danych niezbędnych do połączenia się z bazą (p. następna sekcja). Przygotowane *tabele pośrednie* domyślnie zwraca zarówno jako listę *ramek danych* w środowisku R, z której pobierała dane wejściowe.
 
--   Dla danych z monitoringu 2021 r., na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ, z wykorzystaniem działającej lokalnie bazy PostgreSQL 10.1 trwa ~20 minut.
+-   Dla danych z monitoringu 2021 r., na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ, z wykorzystaniem działającej lokalnie bazy PostgreSQL 10.1 trwa ~20 minut - bez tworzenia *tabeli pośredniej p5* (w konfiguracji z 32 GB RAM i procesorem Ryzen 5 5600H dane z monitoringu 2022 r. przetwarzały się ~18 minut, z tworzeniem *tabeli pośredniej p5*).
 
 Sposób działania obu funkcji - a szczególnie `przygotuj_tabele_posrednie()` - można modyfikować przy pomocy dodatkowych argumentów. Więcej na ten temat można dowiedzieć się w ich dokumentacji:
 
@@ -52,7 +53,7 @@ Sposób działania obu funkcji - a szczególnie `przygotuj_tabele_posrednie()` -
 
 `wczytaj_tabele_posrednie()` wymaga przekazania jako argumentu listy zwróconej przez `przygotuj_tabele_posrednie()` oraz danych niezbędnych do połączenia się z bazą (p. następna sekcja).
 
--   Wczytanie danych z monitoringu 2021 r. do działającej lokalnie bazy PostgreSQL 10.1 na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ trwa ~45 minut.
+-   Wczytanie danych z monitoringu 2021 r. do działającej lokalnie bazy PostgreSQL 10.1 na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ trwa ~45 minut - bez *tabeli pośredniej p5* (w konfiguracji z 32 GB RAM i procesorem Ryzen 5 5600H dane z monitoringu 2022 r. wczytywały się ~45 minut, z *tabelą pośrednia p5*).
 
 ## Współpraca z bazą danych
 
@@ -85,11 +86,6 @@ baza <- list(drv = RPostgres::Postgres(),
 # Skrypt tworzący bazę danych
 
 ```{sql}
-CREATE TYPE plec AS ENUM ('K', 'M');
-CREATE TYPE profil_stu AS ENUM ('P', 'O', 'N');
-CREATE TYPE adres_typ AS ENUM ('meld', 'zam', 'koresp');
-CREATE TYPE rodzaj_dyplomu AS ENUM ('tytuł czeladnika', 'matura', 'certyfikat kwalifikacji', 'dyplom zawodowy', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza');
-
 CREATE TABLE w1 (
 	id_abs int,
 	rok_abs int CHECK (rok_abs >= 2019),
@@ -115,7 +111,7 @@ CREATE TABLE w2 (
 	rok_ur int,
 	plec plec,
 	id_szk int CHECK (id_szk > 0),
-	typ_szk text REFERENCES typy_szkol (typ_szk),
+	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk),
 	teryt_szk int CHECK (teryt_szk >= 201011 AND teryt_szk <= 3299999),
 	lp int,
 	kod_zaw int REFERENCES w20a (kod_zaw),
@@ -127,7 +123,7 @@ CREATE TABLE w3 (
 	id_abs int,
 	rok_abs int,
 	id_szk_kont int NOT NULL CHECK (id_szk_kont > 0),
-	typ_szk_kont text REFERENCES typy_szkol (typ_szk),
+	typ_szk_kont text NOT NULL REFERENCES typy_szkol (typ_szk),
 	data_od_szk_kont date NOT NULL,
 	lp int,
 	czy_ukoncz_szk_kont int CHECK (czy_ukoncz_szk_kont >= 0 AND czy_ukoncz_szk_kont <= 2),
@@ -361,7 +357,7 @@ CREATE TABLE p3 (
 	rok_abs int,
 	okres int,
 	zmarl int NOT NULL CHECK (zmarl in (0, 1)),
-	status_nieustalony int NOT NULL CHECK (zmarl in (0, 1)),
+	status_nieustalony int NOT NULL,
 	praca int,
 	mlodociany int,
 	bezrobocie int,
@@ -392,7 +388,7 @@ CREATE TABLE p4 (
 	rok_ur int,
 	plec plec,
 	id_szk int,
-	typ_szk text,
+	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk),
 	teryt_pow_szk int CHECK (teryt_pow_szk >= 20100 AND teryt_pow_szk <= 329900),
 	teryt_woj_szk int CHECK (teryt_woj_szk >= 20000 AND teryt_woj_szk <= 320000),
 	lp int,
@@ -409,5 +405,18 @@ CREATE TABLE p4 (
 	abs_w_zus boolean NOT NULL,
 	PRIMARY KEY (id_abs, rok_abs, id_szk, lp),
 	FOREIGN KEY (id_abs, rok_abs, id_szk, lp) REFERENCES w2 (id_abs, rok_abs, id_szk, lp) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE p5 (
+	id_abs int,
+	rok_abs int,
+	okres int,
+	lp_pracod int,
+	pkd_pracod text,
+	forma_zatrudnienia int NOT NULL CHECK (forma_zatrudnienia in (1, 2, 3)),
+	mlodociany int NOT NULL CHECK (mlodociany in (0, 1)),
+	wynagrodzenie real,
+	wynagrodzenie_uop real,
+	PRIMARY KEY (id_abs, rok_abs, okres, lp_pracod),
+	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
 ```
