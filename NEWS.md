@@ -1,10 +1,17 @@
+# MLASdaneAdm 0.3.2 (12.04.2023)
+
+## Zmiany w definicjach wskaźników
+
+- W tablicy `w22` tworzone są dwie nowe kolumny `bezrob_ibe` i `inne_ibe`, a ich wartości wykorzystywane są przy tworzeniu wskaźników w *tabelach pośrednich* zamiast dotychczas używanych `bezrob_ela` i `inne_ela`. Nowe kolumny bardziej adekwatnie opisują sytuacje w kontekście monitoringu losów absolwentów szkół ponadpodstawowych związane z pewnymi specyficznymi kodami ZUS.
+- Wiersze w danych wejściowych do tablicy `w16` zawierające kod ZUS 90000 są już obsługiwane w normalny sposób przez mapowanie tego kodu w `w22`, zamiast wykluczane z analizy.
+
 # MLASdaneAdm 0.3.1 (3.12.2022)
 
 ## Ulepszona diagnostyka
 
 - `wczytaj_tabele_wejsciowe()`:
   - Sprawdza, czy w danych (`w2` i `w3`, w praktyce raczej w tej drugiej) występują kody typów szkół, dla których brak jest mapowania na nazwę typu szkoły w pliku 'STYPSZK.csv'.
-  - Sprawdza, czy w danych o kontynuacji kształcenia w szkołach objętych SIO (`w3`) występują rekordy, które najprawdopodobniej opisują naukę w szkole (i zawodzie), jako absolwent której dana osoba została objeta monitoringiem (wystąpienie takiej sytuacji traktowane jest jako błąd).
+  - Sprawdza, czy w danych o kontynuacji kształcenia w szkołach objętych SIO (`w3`) występują rekordy, które najprawdopodobniej opisują naukę w szkole (i zawodzie), jako absolwent której dana osoba została objęta monitoringiem (wystąpienie takiej sytuacji traktowane jest jako błąd).
 
 # MLASdaneAdm 0.3.0 (29.08.2022)
 
@@ -32,13 +39,13 @@
 
 ## Naprawione błedy
 
-- Domyślna wartość argumentu `okresyP2` funkcji `przygotuj_tabele_posrednie()` została zmieniona na opisującą grudnie od roku ukończenia szkoły do roku prowadzenia monitoringu (wcześniej okres ten był błędnie przesuniety o 1 rok wstecz).
+- Domyślna wartość argumentu `okresyP2` funkcji `przygotuj_tabele_posrednie()` została zmieniona na opisującą grudnie od roku ukończenia szkoły do roku prowadzenia monitoringu (wcześniej okres ten był błędnie przesunięty o 1 rok wstecz).
 
 # MLASdaneAdm 0.2.0 (3.11.2021)
 
 ## Nowy wskaźnik
 
-- W *tabeli pośredniej* `p3` tworzonej przez `przygotuj_tabele_posrednie()` tworzony jest nowy wskaznik `nauka_szk_abs`, który wskazuje, czy w danym miesiącu dana osoba uczyła się jeszcze w szkole, jako absolwent której została objęta monitoringiem lub dany miesiąc zawierał się w okresie pomiędzy ukończeniem tej szkoły a podjęciem dalszej nauki w formie innej niż KKZ lub KUZ, najdalej w październiku roku zostania absolwentem. Odpowiednio zmodyfikowano też funkcję `wczytaj_tabele_posrednie()`.
+- W *tabeli pośredniej* `p3` tworzonej przez `przygotuj_tabele_posrednie()` tworzony jest nowy wskaźnik `nauka_szk_abs`, który wskazuje, czy w danym miesiącu dana osoba uczyła się jeszcze w szkole, jako absolwent której została objęta monitoringiem lub dany miesiąc zawierał się w okresie pomiędzy ukończeniem tej szkoły a podjęciem dalszej nauki w formie innej niż KKZ lub KUZ, najdalej w październiku roku zostania absolwentem. Odpowiednio zmodyfikowano też funkcję `wczytaj_tabele_posrednie()`.
 
 # MLASdaneAdm 0.1.1 (18.10.2021)
 

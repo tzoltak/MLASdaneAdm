@@ -576,8 +576,8 @@ przygotuj_tabele_posrednie <- function(
                                   podst_maks, podst_zdrow)) %>%
       left_join(tbl(con, "w22") %>%
                   select(kod_zus, etat = etat_ibe, netat = netat_ibe,
-                         samoz = samoz_ela, inne = inne_ela, mlodoc,
-                         bezrob_ela, bezrobotnystaz, dziecko, bierny_skladka),
+                         samoz = samoz_ela, inne = inne_ibe, mlodoc,
+                         bezrob_ibe, bezrobotnystaz, dziecko, bierny_skladka),
                 by = "kod_zus") %>%
       group_by(id_abs, rok_abs, rok_skladka, mies_skladka) %>%
       summarise(
@@ -596,8 +596,8 @@ przygotuj_tabele_posrednie <- function(
         praca_do_kont_mlodociany =
           as.integer(any(etat, na.rm = TRUE) | any(netat, na.rm = TRUE) |
                        any(kod_zus %in% 1250L, na.rm = TRUE)),
-        bezrobocie = as.integer(any(bezrob_ela, na.rm = TRUE)),
-        bezrobocie_staz = if_else(any(bezrob_ela, na.rm = TRUE),
+        bezrobocie = as.integer(any(bezrob_ibe, na.rm = TRUE)),
+        bezrobocie_staz = if_else(any(bezrob_ibe, na.rm = TRUE),
                                   as.integer(any(bezrobotnystaz, na.rm = TRUE)),
                                   NA_integer_),
         dziecko = as.integer(any(dziecko, na.rm = TRUE)),
@@ -758,8 +758,8 @@ przygotuj_tabele_posrednie <- function(
                                   podst_maks, podst_zdrow)) %>%
       left_join(tbl(con, "w22") %>%
                   select(kod_zus, etat = etat_ibe, netat = netat_ibe,
-                         samoz = samoz_ela, inne = inne_ela, mlodoc,
-                         bezrob_ela, bezrobotnystaz, dziecko, bierny_skladka),
+                         samoz = samoz_ela, inne = inne_ibe, mlodoc,
+                         bezrob_ibe, bezrobotnystaz, dziecko, bierny_skladka),
                 by = "kod_zus") %>%
       group_by(id_abs, rok_abs, id_platnika, rok_skladka, mies_skladka) %>%
       summarise(

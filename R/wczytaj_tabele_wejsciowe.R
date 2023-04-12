@@ -759,26 +759,27 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     dbExecute(con,
               "INSERT INTO w22 (kod_zus, opis, etat_ela, etat_ibe, skladka_szac_wynag,
                                 netat_ibe, bierny_skladka, netat_ela, zlec_ela,
-                                bezrob_ela, student_ela, zagranic_ela, prawnik_ela,
-                                samoz_ela, nspraw_ela, rolnik_ela, rentemer_ela,
-                                mundur_ela, dziecko, etatnokid, netatnokid_ela,
-                                samoznokid_ela, inne_ela, macierzynski_ela,
-                                dziecko_pracownik_ela, dziecko_samozatrudnienie_ela,
-                                dziecko_zlecenie_ela, dziecko_bezpracy_ela,
-                                wychowawczy_opieka, mlodoc, benepomspol,
-                                bezrobotnystaz)
+                                bezrob_ibe, bezrob_ela, student_ela, zagranic_ela,
+                                prawnik_ela, samoz_ela, nspraw_ela, rolnik_ela,
+                                rentemer_ela, mundur_ela, dziecko, etatnokid,
+                                netatnokid_ela, samoznokid_ela, inne_ibe, inne_ela,
+                                macierzynski_ela, dziecko_pracownik_ela,
+                                dziecko_samozatrudnienie_ela, dziecko_zlecenie_ela,
+                                dziecko_bezpracy_ela, wychowawczy_opieka, mlodoc,
+                                benepomspol, bezrobotnystaz)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
                    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
-                   $27, $28, $29, $30, $31, $32)",
+                   $27, $28, $29, $30, $31, $32, $33, $34)",
            params = tabeleWejsciowe$W22 %>%
              select(KOD, OPIS, ETAT_ELA, ETAT_IBE, SKLADKA_SZAC_WYNAG, NETAT_IBE,
-                    BIERNY_SKLADKA, NETAT_ELA, ZLEC_ELA, BEZROB_ELA, STUDENT_ELA,
-                    ZAGRANIC_ELA, PRAWNIK_ELA, SAMOZ_ELA, NSPRAW_ELA, ROLNIK_ELA,
-                    RENTEMER_ELA, MUNDUR_ELA, DZIECKO, ETATNOKID, NETATNOKID_ELA,
-                    SAMOZNOKID_ELA, INNE_ELA, MACIERZYNSKI_ELA,
-                    DZIECKO_PRACOWNIK_ELA, DZIECKO_SAMOZATRUDNIENIE_ELA,
-                    DZIECKO_ZLECENIE_ELA, DZIECKO_BEZPRACY_ELA,
-                    WYCHOWAWCZY_OPIEKA, MLODOC, BENEPOMSPOL, BEZROBOTNYSTAZ) %>%
+                    BIERNY_SKLADKA, NETAT_ELA, ZLEC_ELA, BEZROB_IBE, BEZROB_ELA,
+                    STUDENT_ELA, ZAGRANIC_ELA, PRAWNIK_ELA, SAMOZ_ELA, NSPRAW_ELA,
+                    ROLNIK_ELA, RENTEMER_ELA, MUNDUR_ELA, DZIECKO, ETATNOKID,
+                    NETATNOKID_ELA, SAMOZNOKID_ELA, INNE_IBE, INNE_ELA,
+                    MACIERZYNSKI_ELA, DZIECKO_PRACOWNIK_ELA,
+                    DZIECKO_SAMOZATRUDNIENIE_ELA, DZIECKO_ZLECENIE_ELA,
+                    DZIECKO_BEZPRACY_ELA, WYCHOWAWCZY_OPIEKA, MLODOC,
+                    BENEPOMSPOL, BEZROBOTNYSTAZ) %>%
              as.list() %>%
              unname())
     cat(" zakończony.")
@@ -786,8 +787,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   ## W16 (składki) #############################################################
   # uwaga! agreguję po absolwento-okreso-płatniko-kodach!
   tabeleWejsciowe$W16 <- tabeleWejsciowe$W16 %>%
-    filter(!is.na(KOD_ZUS),
-           KOD_ZUS != 90000L) %>%
+    filter(!is.na(KOD_ZUS)) %>%
     semi_join(tabeleWejsciowe$W1, by = c("ID_ABS", "ROK_ABS")) %>%
     mutate(KOD_ZUS = floor(KOD_ZUS / 100),
            ROK_SKLADKA = as.integer(substr(OKRES_ROZL, 7L, 10L)),
