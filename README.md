@@ -76,7 +76,7 @@ baza <- DBI::dbConnect(RPostgres::Postgres(),
 
 ```{r}
 baza <- list(drv = RPostgres::Postgres(),
-             bname = "monitoring-abs",
+             dbname = "monitoring-abs",
              host = "127.0.0.1",
              port = 5432,
              user = "nazwa_uzytkownika",
