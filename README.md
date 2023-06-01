@@ -65,7 +65,7 @@ Dane niezbędne do połączenia z bazą można przekazać funkcjom pakietu na dw
 
 ```{r}
 baza <- DBI::dbConnect(RPostgres::Postgres(),
-                       bname = "monitoring-abs",
+                       dbname = "monitoring-abs",
                        host = "127.0.0.1",
                        port = 5432,
                        user = "nazwa_uzytkownika",
