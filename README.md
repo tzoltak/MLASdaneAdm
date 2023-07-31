@@ -86,6 +86,11 @@ baza <- list(drv = RPostgres::Postgres(),
 # Skrypt tworzący bazę danych
 
 ```{sql}
+CREATE TYPE plec AS ENUM ('K', 'M');
+CREATE TYPE profil_stu AS ENUM ('P', 'O', 'N');
+CREATE TYPE adres_typ AS ENUM ('meld', 'zam', 'koresp');
+CREATE TYPE rodzaj_dyplomu AS ENUM ('tytuł czeladnika', 'matura', 'certyfikat kwalifikacji', 'dyplom zawodowy', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza');
+
 CREATE TABLE w1 (
 	id_abs int,
 	rok_abs int CHECK (rok_abs >= 2019),
