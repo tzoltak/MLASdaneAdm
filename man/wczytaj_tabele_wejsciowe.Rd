@@ -8,7 +8,9 @@ wczytaj_tabele_wejsciowe(
   baza,
   folder = ".",
   wczytajDoBazy = TRUE,
-  zapiszProblemy = TRUE
+  zapiszProblemy = TRUE,
+  usunAbsWKilkuZaw = TRUE,
+  plikLogu = NULL
 )
 }
 \arguments{
@@ -25,6 +27,13 @@ wykryte w nich problemy)}
 
 \item{zapiszProblemy}{opcjonalnie wartość logiczna - czy funkcja ma zapisywać
 zestawienia wykrytych we wczytanych plikach problemów w formie plików CSV?}
+
+\item{usunAbsWKilkuZaw}{czy absolwenci, którzy ukończyli kilka różnych
+zawodów w tej samej szkole, \strong{niebędącej szkołą policealną} powinni
+zostać wykluczeni z importu?}
+
+\item{plikLogu}{opcjonalnie nazwa pliku, do którego ma być zapisany log
+wywołania funkcji}
 }
 \value{
 \code{NULL}

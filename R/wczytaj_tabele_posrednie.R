@@ -33,9 +33,9 @@ wczytaj_tabele_posrednie <- function(tabelePosrednie, baza) {
     cat("\nZapis tabeli P1 do bazy danych...")
     dbExecute(con,
               "INSERT INTO p1 (id_abs, rok_abs, rodzaj_dyplomu, dyplom_szczegoly,
-                                 okres_dyplom, lp_dyplom, kod_zaw, branza,
-                                 kod_zaw_dyplom, branza_dyplom, dziedzina,
-                                 dyscyplina_wiodaca)
+                               okres_dyplom, lp_dyplom, kod_zaw, branza,
+                               kod_zaw_dyplom, branza_dyplom, dziedzina,
+                               dyscyplina_wiodaca)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
               params = tabelePosrednie$p1 %>%
                 select(id_abs, rok_abs, rodzaj_dyplomu, dyplom_szczegoly,
@@ -49,8 +49,8 @@ wczytaj_tabele_posrednie <- function(tabelePosrednie, baza) {
     cat("\nZapis tabeli P2 do bazy danych...")
     dbExecute(con,
               "INSERT INTO p2 (id_abs, rok_abs, okres_kont, lp_kont, kod_zaw,
-                           branza, branza_kont, dziedzina_kont,
-                           dyscyplina_wiodaca_kont, branza_kont_zrodlo)
+                               branza, branza_kont, dziedzina_kont,
+                               dyscyplina_wiodaca_kont, branza_kont_zrodlo)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
               params = tabelePosrednie$p2 %>%
                 select(id_abs, rok_abs, okres_kont, lp_kont, kod_zaw, branza,
@@ -64,18 +64,23 @@ wczytaj_tabele_posrednie <- function(tabelePosrednie, baza) {
     cat("\nZapis tabeli P3 do bazy danych...")
     dbExecute(con,
               "INSERT INTO p3 (id_abs, rok_abs, okres, zmarl, status_nieustalony,
-	                         praca, mlodociany, bezrobocie, bezrobocie_staz,
-	                         dziecko, biernosc, kont_mlodoc_prac, wynagrodzenie,
-	                         wynagrodzenie_uop, teryt_zam, powiat_bezrobocie,
-	                         powiat_sr_wynagrodzenie, nauka, nauka2, nauka_szk_abs,
-                           nauka_bs2st, nauka_lodd, nauka_spolic, nauka_studia,
-                           nauka_kkz, nauka_kuz)
+	                             praca, mlodociany, bezrobocie, bezrobocie_staz,
+                               dziecko, macierz, wychow, pomoc_spol,
+                               emeryt_rencista, niepelnosprawny,
+                               biernosc, dziecko2, wypadek, choroba, choroba_macierz,
+                               kont_mlodoc_prac, wynagrodzenie, wynagrodzenie_uop,
+                               teryt_zam, powiat_bezrobocie, powiat_sr_wynagrodzenie,
+                               nauka, nauka2, nauka_szk_abs, nauka_bs2st, nauka_lodd,
+                               nauka_spolic, nauka_studia, nauka_kkz, nauka_kuz)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
                          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-                         $25, $26)",
+                         $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)",
               params = tabelePosrednie$p3 %>%
-                select(id_abs, rok_abs, okres, zmarl, status_nieustalony, praca,
-                       mlodociany, bezrobocie, bezrobocie_staz, dziecko, biernosc,
+                select(id_abs, rok_abs, okres, zmarl, status_nieustalony,
+                       praca, mlodociany, bezrobocie, bezrobocie_staz,
+                       dziecko, macierz, wychow, pomoc_spol,
+                       emeryt_rencista, niepelnosprawny,
+                       biernosc, dziecko2, wypadek, choroba, choroba_macierz,
                        kont_mlodoc_prac, wynagrodzenie, wynagrodzenie_uop,
                        teryt_zam, powiat_bezrobocie, powiat_sr_wynagrodzenie,
                        nauka, nauka2, nauka_szk_abs, nauka_bs2st, nauka_lodd,
@@ -88,16 +93,24 @@ wczytaj_tabele_posrednie <- function(tabelePosrednie, baza) {
     cat("\nZapis tabeli P4 do bazy danych...")
     dbExecute(con,
               "INSERT INTO p4 (id_abs, rok_abs, rok_ur, plec, id_szk, typ_szk,
-                           teryt_pow_szk, teryt_woj_szk, lp, kod_zaw, nazwa_zaw,
-                           branza, l_prac_ucz_uop, l_prac_nucz_uop,
-                           l_prac_nucz_nuop, zawod_sr_wynagrodzenie, abs_w_cke,
-                           abs_w_sio, abs_w_polon, abs_w_zus)
+                               teryt_pow_szk, nazwa_pow_szk, teryt_woj_szk,
+                               nazwa_woj_szk, nazwa_makroreg_szk, nazwa_reg_szk,
+                               nazwa_podreg_szk, nts_podreg_szk,
+                               lp, kod_zaw, nazwa_zaw, branza, kod_isced,
+                               grupa_isced, podgrupa_isced, nazwa_isced,
+                               l_prac_ucz_uop, l_prac_nucz_uop, l_prac_nucz_nuop,
+                               zawod_sr_wynagrodzenie, abs_w_cke,
+                               abs_w_sio, abs_w_polon, abs_w_zus)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                         $14, $15, $16, $17, $18, $19, $20)",
+                         $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+                         $25, $26, $27, $28, $29, $30)",
               params = tabelePosrednie$p4 %>%
                 select(id_abs, rok_abs, rok_ur, plec, id_szk, typ_szk,
-                       teryt_pow_szk, teryt_woj_szk, lp, kod_zaw, nazwa_zaw,
-                       branza, l_prac_ucz_uop, l_prac_nucz_uop, l_prac_nucz_nuop,
+                       teryt_pow_szk, nazwa_pow_szk, teryt_woj_szk, nazwa_woj_szk,
+                       nazwa_makroreg_szk, nazwa_reg_szk, nazwa_podreg_szk,
+                       nts_podreg_szk, lp, kod_zaw, nazwa_zaw, branza,
+                       kod_isced, grupa_isced, podgrupa_isced, nazwa_isced,
+                       l_prac_ucz_uop, l_prac_nucz_uop, l_prac_nucz_nuop,
                        zawod_sr_wynagrodzenie, abs_w_cke, abs_w_sio, abs_w_polon,
                        abs_w_zus) %>%
                 as.list() %>%

@@ -78,9 +78,9 @@
 #' @seealso \code{\link{wczytaj_tabele_posrednie}}
 #' @importFrom dplyr %>% across add_count arrange bind_rows case_when
 #'                   collect copy_to distinct everything filter full_join
-#'                   group_by if_else inner_join left_join mutate n pull rename
-#'                   select slice_min slice_max starts_with summarise tbl
-#'                   ungroup
+#'                   group_by join_by if_else inner_join left_join mutate n
+#'                   pull reframe rename right_join select slice_min slice_max
+#'                   starts_with summarise tbl ungroup
 #' @importFrom lubridate day month year
 #' @importFrom DBI dbConnect dbExecute dbDisconnect
 #' @export
@@ -130,6 +130,11 @@ przygotuj_tabele_posrednie <- function(
   minDniEdukacjiWMiesiacu <- as.integer(minDniEdukacjiWMiesiacu)
   on.exit({if (!inherits(baza, "DBIConnection")) dbDisconnect(con)})
   tabelePosrednie <- list()
+  if (rokMonitoringu %in% (tbl(con, "w1") %>%
+                           pull(rok_abs) %>%
+                           unique())) {
+    warning("Wartość argumentu `rokMonitoringu` występuje wśród wartości kolumny `rok_abs` tabeli z danymi wejściowymi W1. Czy na pewno wskazuje ona rok prowadzenia monitoringu?", immediate. = TRUE)
+  }
   cat("\nStart: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
 
   # Półfabrykaty do P1 i P2 ####################################################
@@ -214,9 +219,11 @@ przygotuj_tabele_posrednie <- function(
         group_by(id_abs, rok_abs, kod_zaw, branza, kod_kwal, rodzaj_dyplomu,
                  rok_dyplom, miesiac_dyplom) %>%
         summarise(kod_zaw_dyplom =
-                    case_when(any(kod_zaw_dyplom == kod_zaw, na.rm = TRUE) ~ kod_zaw),
+                    if_else(any(kod_zaw_dyplom == kod_zaw, na.rm = TRUE),
+                            kod_zaw[1], NA_integer_),
                   branza_dyplom =
-                    case_when(any(branza_dyplom == branza, na.rm = TRUE) ~ branza),
+                    if_else(any(branza_dyplom == branza, na.rm = TRUE),
+                            branza[1], NA_character_),
                   .groups = "drop") %>%
         collect()) %>%
       rename(dyplom_szczegoly = kod_kwal)
@@ -262,13 +269,20 @@ przygotuj_tabele_posrednie <- function(
       mutate(okres_dyplom = 12L*rok_dyplom + miesiac_dyplom) %>%
       group_by(id_abs, rok_abs, rodzaj_dyplomu) %>%
       arrange(id_abs, rok_abs, kod_zaw, okres_dyplom, rodzaj_dyplomu) %>%
-      mutate(lp_dyplom = 1L:n()) %>%
+      mutate(lp_dyplom = seq_len(n())) %>%
       ungroup()
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # P2 (branża/dziedzina kontynuacji kształcenia) ##############################
   if (przygotujP2) {
     cat("\nPrzygotowywanie tabeli P2...")
+    okresyP2 <- tbl(con, "w1") %>%
+      select(rok_abs) %>%
+      distinct() %>%
+      collect() %>%
+      group_by(rok_abs) %>%
+      reframe(okres_kont = okresyP2[okresyP2 > 12L*(rok_abs - 1L)]) %>%
+      ungroup()
     # szkoły objęte SIO
     t3c <- t2 %>%
       inner_join(tbl(con, "w3") %>%
@@ -283,15 +297,15 @@ przygotuj_tabele_posrednie <- function(
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
       collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres_kont =
-                  (12L*year(data_od_szk_kont) +
-                     month(data_od_szk_kont)):(12L*year(data_do_szk_kont) +
-                                                 month(data_do_szk_kont)),
-                .groups = "drop") %>%
-      filter(okres_kont %in% okresyP2, okres_kont > 12L*(rok_abs) - 1L,
-             !is.na(branza_kont)) %>%
-      select(-data_od_szk_kont, -data_do_szk_kont) %>%
+      filter(!is.na(branza_kont)) %>%
+      mutate(okres_od_szk_kont = 12L*year(data_od_szk_kont) + month(data_od_szk_kont),
+             okres_do_szk_kont = 12L*year(data_do_szk_kont) + month(data_do_szk_kont)) %>%
+      inner_join(okresyP2,
+                 by = join_by(rok_abs == rok_abs,
+                              overlaps(okres_od_szk_kont, okres_do_szk_kont,
+                                       okres_kont, okres_kont))) %>%
+      select(-data_od_szk_kont, -data_do_szk_kont,
+             -okres_od_szk_kont, -okres_do_szk_kont) %>%
       distinct() %>%
       mutate(zrodlo = "W3")
     # KKZ
@@ -309,14 +323,14 @@ przygotuj_tabele_posrednie <- function(
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
       collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres_kont = (12L*year(data_od_kkz) +
-                                month(data_od_kkz)):(12L*year(data_do_kkz) +
-                                                       month(data_do_kkz)),
-                .groups = "drop") %>%
-      filter(okres_kont %in% okresyP2, okres_kont > 12L*(rok_abs - 1L),
-             !is.na(branza_kont)) %>%
-      select(-data_od_kkz, -data_do_kkz) %>%
+      filter(!is.na(branza_kont)) %>%
+      mutate(okres_od_kkz = 12L*year(data_od_kkz) + month(data_od_kkz),
+             okres_do_kkz = 12L*year(data_do_kkz) + month(data_do_kkz)) %>%
+      inner_join(okresyP2,
+                 by = join_by(rok_abs == rok_abs,
+                              overlaps(okres_od_kkz, okres_do_kkz,
+                                       okres_kont, okres_kont))) %>%
+      select(-data_od_kkz, -data_do_kkz, -okres_od_kkz, -okres_do_kkz) %>%
       distinct() %>%
       mutate(zrodlo = "W4")
     # KUZ
@@ -333,14 +347,14 @@ przygotuj_tabele_posrednie <- function(
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
       collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres_kont = (12L*year(data_od_kuz) +
-                                month(data_od_kuz)):(12L*year(data_do_kuz) +
-                                                       month(data_do_kuz)),
-                .groups = "drop") %>%
-      filter(okres_kont %in% okresyP2, okres_kont > 12L*(rok_abs - 1L),
-             !is.na(branza_kont)) %>%
-      select(-data_od_kuz, -data_do_kuz) %>%
+      filter(!is.na(branza_kont)) %>%
+      mutate(okres_od_kuz = 12L*year(data_od_kuz) + month(data_od_kuz),
+             okres_do_kuz = 12L*year(data_do_kuz) + month(data_do_kuz)) %>%
+      inner_join(okresyP2,
+                 by = join_by(rok_abs == rok_abs,
+                              overlaps(okres_od_kuz, okres_do_kuz,
+                                       okres_kont, okres_kont))) %>%
+      select(-data_od_kuz, -data_do_kuz, -okres_od_kuz, -okres_do_kuz) %>%
       distinct() %>%
       mutate(zrodlo = "W5")
     # studia
@@ -358,13 +372,13 @@ przygotuj_tabele_posrednie <- function(
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
       collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres_kont = (12L*year(data_od_stu) +
-                                month(data_od_stu)):(12L*year(data_do_stu) +
-                                                       month(data_do_stu)),
-                .groups = "drop") %>%
-      filter(okres_kont %in% okresyP2, okres_kont > 12L*(rok_abs - 1L)) %>%
-      select(-data_od_stu, -data_do_stu) %>%
+      mutate(okres_od_stu = 12L*year(data_od_stu) + month(data_od_stu),
+             okres_do_stu = 12L*year(data_do_stu) + month(data_do_stu)) %>%
+      inner_join(okresyP2,
+                 by = join_by(rok_abs == rok_abs,
+                              overlaps(okres_od_stu, okres_do_stu,
+                                       okres_kont, okres_kont))) %>%
+      select(-data_od_stu, -data_do_stu, -okres_od_stu, -okres_do_stu) %>%
       distinct()
     # łączenie i wczytywanie do P2
     tabelePosrednie$p2 <- bind_rows(t3c, t4c, t5c) %>%
@@ -375,7 +389,7 @@ przygotuj_tabele_posrednie <- function(
                 by = c("id_abs", "rok_abs", "kod_zaw", "branza", "okres_kont")) %>%
       group_by(id_abs, rok_abs, okres_kont) %>%
       arrange(id_abs, rok_abs, okres_kont, kod_zaw) %>%
-      mutate(lp_kont = 1L:n()) %>%
+      mutate(lp_kont = seq_len(n())) %>%
       ungroup()
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
@@ -384,15 +398,22 @@ przygotuj_tabele_posrednie <- function(
     cat("\nPrzygotowywanie tabeli P3 (może zająć kilkanaście minut)...")
     # wszystkie absolwento-miesiące
     # uwaga! początkiem zawsze jest styczeń rok_abs! końcem maj roku prowadzenia monitoringu
+    wszystkieOkresy <- tbl(con, "w1") %>%
+      select(rok_abs) %>%
+      distinct() %>%
+      collect() %>%
+      group_by(rok_abs) %>%
+      reframe(okres = (12L*rok_abs + 1L + okresOd):okresDo) %>%
+      ungroup()
+
     t1 <- tbl(con, "w1") %>%
       left_join(tbl(con, "w14") %>%
                   mutate(okres_zgonu = 12L*rok_zgonu + mies_zgonu) %>%
                   select(id_abs, rok_abs, okres_zgonu),
                 by = c("id_abs", "rok_abs")) %>%
       collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres = (12L*rok_abs + 1L + okresOd):okresDo,
-                .groups = "drop") %>%
+      dplyr::right_join(wszystkieOkresy,
+                       by = "rok_abs") %>%
       mutate(zmarl = if_else(is.na(okres_zgonu),
                              0L, as.integer(okres > okres_zgonu))) %>%
       select(-okres_zgonu)
@@ -408,90 +429,67 @@ przygotuj_tabele_posrednie <- function(
       select(id_abs, rok_abs, typ_szk_kont,
              data_od_szk_kont, data_do_szk_kont) %>%
       distinct() %>%
-      collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres_kont =
-                  (12L*year(data_od_szk_kont) +
-                     month(data_od_szk_kont)):(12L*year(data_do_szk_kont) +
-                                                 month(data_do_szk_kont)),
-                .groups = "drop") %>%
-      filter(okres_kont > (12L*rok_abs + okresOd)) %>%
-      select(-data_od_szk_kont, -data_do_szk_kont) %>%
-      distinct()
+      collect()
     # dane o kontynuacji nauki na KKZ przerobione na miesiące
     # w przypadku KKZ i KUZ mogę rozsądnie brać pod uwagę tylko te, dla których
     # znana jest data zakończenia - jej brak wcale nie musi oznaczać, że ktoś
     # dany kurs kontynuuje
     t4m <- tbl(con, "w4") %>%
       filter(!is.na(data_do_kkz)) %>%
-      select(id_abs, rok_abs, data_od_kkz, data_do_kkz) %>%
-      mutate(data_od_kkz = as.Date(data_od_kkz + minDniEdukacjiWMiesiacu),
-             data_do_kkz = as.Date(data_do_kkz - minDniEdukacjiWMiesiacu)) %>%
+      select(id_abs, rok_abs, data_od_szk_kont = data_od_kkz,
+             data_do_szk_kont = data_do_kkz) %>%
+      mutate(typ_szk_kont = "KKZ",
+             data_od_szk_kont = as.Date(data_od_szk_kont + minDniEdukacjiWMiesiacu),
+             data_do_szk_kont = as.Date(data_do_szk_kont - minDniEdukacjiWMiesiacu)) %>%
       distinct() %>%
-      collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres_kont = (12L*year(data_od_kkz) +
-                                month(data_od_kkz)):(12L*year(data_do_kkz) +
-                                                       month(data_do_kkz)),
-                .groups = "drop") %>%
-      filter(okres_kont > (12L*rok_abs + okresOd)) %>%
-      select(-data_od_kkz, -data_do_kkz) %>%
-      distinct() %>%
-      mutate(typ_szk_kont = "KKZ")
+      collect()
     # dane o kontynuacji nauki na KUZ przerobione na miesiące
     # w przypadku KKZ i KUZ mogę rozsądnie brać pod uwagę tylko te, dla których
     # znana jest data zakończenia - jej brak wcale nie musi oznaczać, że ktoś
     # dany kurs kontynuuje
     t5m <- tbl(con, "w5") %>%
       filter(!is.na(data_do_kuz)) %>%
-      select(id_abs, rok_abs, data_od_kuz, data_do_kuz) %>%
-      mutate(data_od_kuz = as.Date(data_od_kuz + minDniEdukacjiWMiesiacu),
-             data_do_kuz = as.Date(data_do_kuz - minDniEdukacjiWMiesiacu)) %>%
+      select(id_abs, rok_abs, data_od_szk_kont = data_od_kuz,
+             data_do_szk_kont = data_do_kuz) %>%
+      mutate(typ_szk_kont = "KUZ",
+             data_od_szk_kont = as.Date(data_od_szk_kont + minDniEdukacjiWMiesiacu),
+             data_do_szk_kont = as.Date(data_do_szk_kont - minDniEdukacjiWMiesiacu)) %>%
       distinct() %>%
-      collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres_kont = (12L*year(data_od_kuz) +
-                                month(data_od_kuz)):(12L*year(data_do_kuz) +
-                                                       month(data_do_kuz)),
-                .groups = "drop") %>%
-      filter(okres_kont > (12L*rok_abs + okresOd)) %>%
-      select(-data_od_kuz, -data_do_kuz) %>%
-      distinct() %>%
-      mutate(typ_szk_kont = "KUZ")
+      collect()
     # dane o kontynuacji nauki na studiach przerobione na miesiące
     t12m <- tbl(con, "w12") %>%
-      select(id_abs, rok_abs, data_od_stu, data_do_stu) %>%
-      mutate(data_od_stu = as.Date(data_od_stu + minDniEdukacjiWMiesiacu),
-             data_do_stu = as.Date(
-               if_else(is.na(data_do_stu),
+      select(id_abs, rok_abs, data_od_szk_kont = data_od_stu,
+             data_do_szk_kont = data_do_stu) %>%
+      mutate(typ_szk_kont = "studia",
+             data_od_szk_kont = as.Date(data_od_szk_kont + minDniEdukacjiWMiesiacu),
+             data_do_szk_kont = as.Date(
+               if_else(is.na(data_do_szk_kont),
                        imputujDateKoncaStudiow,
-                       data_do_stu) - minDniEdukacjiWMiesiacu)) %>%
+                       data_do_szk_kont) - minDniEdukacjiWMiesiacu)) %>%
       distinct() %>%
-      collect() %>%
-      group_by(across(everything())) %>%
-      summarise(okres_kont = (12L*year(data_od_stu) +
-                                month(data_od_stu)):(12L*year(data_do_stu) +
-                                                       month(data_do_stu)),
-                .groups = "drop") %>%
-      filter(okres_kont > 12L*(rok_abs - 1L)) %>%
-      select(-data_od_stu, -data_do_stu) %>%
-      distinct() %>%
-      mutate(typ_szk_kont = "studia")
+      collect()
     # laczenie
     t34512m <- bind_rows(t3m, t4m, t5m, t12m) %>%
-      rename(okres = okres_kont) %>%
+      # tylko nauka, która trwała dłużej niż minDniEdukacjiWMiesiacu
+      filter((data_do_szk_kont - data_od_szk_kont + minDniEdukacjiWMiesiacu) > 0) %>%
+      mutate(okres_od_szk_kont = 12L*year(data_od_szk_kont) + month(data_od_szk_kont),
+             okres_do_szk_kont = 12L*year(data_do_szk_kont) + month(data_do_szk_kont)) %>%
+      inner_join(wszystkieOkresy,
+                 by = join_by(rok_abs == rok_abs,
+                              overlaps(okres_od_szk_kont, okres_do_szk_kont,
+                                       okres, okres))) %>%
       group_by(id_abs, rok_abs, okres) %>%
       summarise(nauka = 1L,
-                nauka2 = any(!(typ_szk_kont %in% c("KKZ", "KUZ"))),
-                nauka_bs2st = any(typ_szk_kont %in% "Branżowa szkoła II stopnia"),
-                nauka_lodd = any(typ_szk_kont %in% "Liceum ogólnokształcące"),
-                nauka_spolic = any(typ_szk_kont %in%
-                                     c("Szkoła policealna",
-                                       "Policealna szkoła plastyczna",
-                                       "Policealna szkoła plastyczna")),
-                nauka_studia = any(typ_szk_kont %in% "studia"),
-                nauka_kkz = any(typ_szk_kont %in% "KKZ"),
-                nauka_kuz = any(typ_szk_kont %in% "KUZ"),
+                nauka2 = as.integer(any(!(typ_szk_kont %in% c("KKZ", "KUZ")))),
+                nauka_bs2st = as.integer(any(typ_szk_kont %in% "Branżowa szkoła II stopnia")),
+                nauka_lodd = as.integer(any(typ_szk_kont %in% "Liceum ogólnokształcące")),
+                nauka_spolic = as.integer(any(typ_szk_kont %in%
+                                                c("Szkoła policealna",
+                                                  "Policealna szkoła muzyczna",
+                                                  "Policealna szkoła plastyczna"))),
+                nauka_studia = as.integer(any(typ_szk_kont %in% "studia")),
+                nauka_kkz = as.integer(any(typ_szk_kont %in% "KKZ")),
+                nauka_kuz = as.integer(any(typ_szk_kont %in% "KUZ")),
                 .groups = "drop")
     # dane adresowe przerobione na miesiące
     # ignoruję ostatnią z zebranych cyfr TERYTu (miasto/wieś)
@@ -552,7 +550,8 @@ przygotuj_tabele_posrednie <- function(
       left_join(tbl(con, "w19") %>%
                   mutate(okres = 12L*rok + miesiac) %>%
                   select(-rok, -miesiac) %>%
-                  rename(powiat_bezrobocie = stopa_bezrobocia,
+                  rename(teryt = teryt_pow,
+                         powiat_bezrobocie = stopa_bezrobocia,
                          powiat_sr_wynagrodzenie = sr_wynagrodzenia),
                 by = c("okres", "teryt"))
     # przerwy w opłacaniu składek
@@ -563,9 +562,17 @@ przygotuj_tabele_posrednie <- function(
                12L*year(data_do_przerwa) + month(data_do_przerwa)) %>%
       inner_join(t1db, by = c("id_abs", "rok_abs")) %>%
       filter(okres >= okres_od_przerwa, okres <= okres_do_przerwa, zmarl == 0L) %>%
-      select(id_abs, rok_abs, okres) %>%
-      distinct() %>%
-      mutate(przerwa = TRUE)
+      left_join(tbl(con, "w23") %>%
+                  select(kod, bierny_zawodowo, dziecko2, wypadek, choroba,
+                         choroba_macierz),
+                by = join_by(kod_przerwy == kod)) %>%
+      group_by(id_abs, rok_abs, okres) %>%
+      summarise(przerwa = TRUE,
+                dziecko2 = as.integer(any(dziecko2, na.rm = TRUE)),
+                wypadek = as.integer(any(wypadek, na.rm = TRUE)),
+                choroba = as.integer(any(choroba, na.rm = TRUE)),
+                choroba_macierz = as.integer(any(choroba_macierz, na.rm = TRUE)),
+                .groups = "drop")
     # składki ZUS
     t16 <- tbl(con, "w16") %>%
       mutate(podst_maks = if_else(podst_chor > podst_wypad,
@@ -577,7 +584,8 @@ przygotuj_tabele_posrednie <- function(
       left_join(tbl(con, "w22") %>%
                   select(kod_zus, etat = etat_ibe, netat = netat_ibe,
                          samoz = samoz_ela, inne = inne_ibe, mlodoc,
-                         bezrob_ibe, bezrobotnystaz, dziecko, bierny_skladka),
+                         bezrob_ibe, bezrobotnystaz, pomoc_spol,
+                         dziecko, macierz, wychow, bierny_skladka),
                 by = "kod_zus") %>%
       group_by(id_abs, rok_abs, rok_skladka, mies_skladka) %>%
       summarise(
@@ -601,6 +609,11 @@ przygotuj_tabele_posrednie <- function(
                                   as.integer(any(bezrobotnystaz, na.rm = TRUE)),
                                   NA_integer_),
         dziecko = as.integer(any(dziecko, na.rm = TRUE)),
+        macierz = as.integer(any(macierz, na.rm = TRUE)),
+        wychow = as.integer(any(wychow, na.rm = TRUE)),
+        pomoc_spol = as.integer(any(pomoc_spol, na.rm = TRUE)),
+        emeryt_rencista = max(emeryt_rencista, na.rm = TRUE),
+        niepelnosprawny = max(niepelnosprawny, na.rm = TRUE),
         wynagrodzenie = sum(podst_maks, na.rm = TRUE),
         wynagrodzenie_uop = sum(podst_maks[etat], na.rm = TRUE),
         biernosc = any(bierny_skladka, na.rm = TRUE),
@@ -644,7 +657,8 @@ przygotuj_tabele_posrednie <- function(
                   rename(teryt_zam = teryt) %>%
                   left_join(tMlodoc, by = c("id_abs", "rok_abs", "okres")),
                 by = c("id_abs", "rok_abs", "okres")) %>%
-      left_join(t34512m, by = c("id_abs", "rok_abs", "okres")) %>%
+      left_join(t34512m,
+                by = c("id_abs", "rok_abs", "okres")) %>%
       mutate(nauka_szk_abs =
                if_else(okres <= (12L*rok_abs + 6L), 1L, 0L)) %>%
       group_by(id_abs, rok_abs) %>%
@@ -653,9 +667,11 @@ przygotuj_tabele_posrednie <- function(
                          okres <= (12L*rok_abs + 9L) &
                          (cumsum(ifelse(okres < (12L*rok_abs + 7L) |
                                           okres > (12L*rok_abs + 9L),
-                                        0L, 1L)) < 0L | nauka2 == 0) &
-                         (cumsum(nauka2)[okres == (12L*rok_abs + 10L)] -
-                            cumsum(nauka2)) > 0,
+                                        0L, 1L)) < 0L | nauka2 == 0L) &
+                         # sztuczka z sum() żeby nie wybuchało, jeśli w danych
+                         # brak obserwacji spełniającej warunek okres == (12L*rok_abs + 10L)
+                         (sum(0L, cumsum(nauka2)[okres == (12L*rok_abs + 10L)]) -
+                            cumsum(nauka2)) > 0L,
                        1L, nauka_szk_abs)) %>%
       ungroup() %>%
       mutate(status_nieustalony =
@@ -709,11 +725,25 @@ przygotuj_tabele_posrednie <- function(
                 .groups = "drop")
     # łączenie i zapis
     tabelePosrednie$p4 <- tbl(con, "w2") %>%
-      mutate(teryt_pow_szk = 100L*floor(teryt_szk / 1000),
-             teryt_woj_szk = 10000L*floor(teryt_szk / 100000)) %>%
+      mutate(teryt_pow_szk = 100L*floor(teryt_szk / 1000L),
+             teryt_woj_szk = 10000L*floor(teryt_szk / 100000L)) %>%
       left_join(t20, by = "kod_zaw") %>%
+      left_join(tbl(con, "w25") %>%
+                  rename(teryt_pow_szk = teryt_pow,
+                         nazwa_pow_szk = powiat,
+                         nazwa_woj_szk = wojewodztwo,
+                         nazwa_makroreg_szk = makroregion,
+                         nazwa_reg_szk = region,
+                         nazwa_podreg_szk = podregion,
+                         nts_podreg_szk = nts),
+                by = "teryt_pow_szk") %>%
+      left_join(tbl(con, "w24"),
+                by = "kod_zaw") %>%
       select(id_abs, rok_abs, rok_ur, plec, id_szk, typ_szk, teryt_pow_szk,
-             teryt_woj_szk, lp, kod_zaw, nazwa_zaw, branza) %>%
+             nazwa_pow_szk, teryt_woj_szk, nazwa_woj_szk, nazwa_makroreg_szk,
+             nazwa_reg_szk, nazwa_podreg_szk, nts_podreg_szk,
+             lp, kod_zaw, nazwa_zaw, branza,
+             kod_isced, grupa_isced, podgrupa_isced, nazwa_isced) %>%
       collect() %>%
       left_join(tPracodawcy, by = c("id_abs", "rok_abs")) %>%
       left_join(tWynagrZawod, by = c("rok_abs", "kod_zaw")) %>%
