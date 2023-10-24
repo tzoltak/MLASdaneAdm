@@ -281,8 +281,7 @@ przygotuj_tabele_posrednie <- function(
       distinct() %>%
       collect() %>%
       group_by(rok_abs) %>%
-      reframe(okres_kont = okresyP2[okresyP2 > 12L*(rok_abs - 1L)]) %>%
-      ungroup()
+      reframe(okres_kont = okresyP2[okresyP2 > 12L*(rok_abs - 1L)])
     # szkoły objęte SIO
     t3c <- t2 %>%
       inner_join(tbl(con, "w3") %>%
@@ -403,8 +402,7 @@ przygotuj_tabele_posrednie <- function(
       distinct() %>%
       collect() %>%
       group_by(rok_abs) %>%
-      reframe(okres = (12L*rok_abs + 1L + okresOd):okresDo) %>%
-      ungroup()
+      reframe(okres = (12L*rok_abs + 1L + okresOd):okresDo)
 
     t1 <- tbl(con, "w1") %>%
       left_join(tbl(con, "w14") %>%

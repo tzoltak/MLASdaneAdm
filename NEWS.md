@@ -29,12 +29,12 @@
 
 ## Naprawione błędy
 
--   Przy wczytywaniu tabel wejściowych rekordy z ewidetnie zduplikowanym `id_abs` są usuwane (wcześniej były oznaczane przypisaniem unikalnych, ujemnych wartości `id_abs`, które nie łączyły się z danymi w innych tabelach, ale nie byli usuwani i przechodziły do tabel pośrednich w formie absolwentów, o których nic nie było wiadomo).
+-   Przy wczytywaniu tabel wejściowych rekordy z ewidetnie zduplikowanym `id_abs` są usuwane (wcześniej były oznaczane przypisaniem unikalnych, ujemnych wartości `id_abs`, które nie łączyły się z danymi w innych tabelach, ale nie były usuwane i przechodziły do tabel pośrednich w formie absolwentów, o których nic nie było wiadomo).
 -   Przy tworzeniu tabeli pośredniej `p1`, zgodnie z pierwotną intencją, nie pojawiają się duplikaty dyplomów, jeśli dana kwalifikacja jest przypisana do kilku zawodów lub branż (wcześniej przypisanie do zawodu lub branży było dla wszystkich takich rekordów albo ustawiane na zgodne z zawodem/branżą zawodu, w którym uczył się absolwent, jeśli takowy wśród nich występował, lub na brak danych w przeciwnym przypadku, ale pozostawiano wszystkie kopie, które po takiej zmianie były ze sobą tożsame).
 -   Przy tworzeniu tabeli pośredniej `p3` uczniowie policealnych szkół muzycznych są klasyfikowani jako uczący się w szkołach policealnych (wcześniej warunek pomijał ten typ szkoły).
 -   Przy tworzenniu tabeli pośredniej `p3` prawidłowo obsługiwana jest sytuacja, kiedy dana osoba uczyła się w szkole (kontynuując kształcenie) tak krótko, że po skorygowaniu dat rozpoczęcia i zakończenia nauki o `minDniEdukacjiWMiesiacu` data ukończenia szkoły była wcześniejsza, niż data jej rozpoczęcia (wcześniej w takiej sytuacji generowany był nieprawidłowy rekord wskazujące na naukę).
--   Przy tworzeniu wskaźnika `nauka_szk_abs` w tabeli pośredniej `p3` funkcja `przygotuj_tabele_posrednie()` potrafi obsłużyćsytuację, gdy w danych nie występuje okres odpowiadający październikowi roku zostania absolwentem.
-    -   Co nie zmienia faktu, że sytuacja taka wskazuje albo na krytyczne braki w przetwarzanych danych, albo na podanie złej wartości argumentu `rokMonitoringu` w wywołaniu `przygotuj_tabele_posrednie()`, w związku z czym uzytkownik otrzyma teraz odpowiednie ostrzeżenie.
+-   Przy tworzeniu wskaźnika `nauka_szk_abs` w tabeli pośredniej `p3` funkcja `przygotuj_tabele_posrednie()` potrafi obsłużyć sytuację, gdy w danych nie występuje okres odpowiadający październikowi roku zostania absolwentem.
+    -   Co nie zmienia faktu, że sytuacja taka wskazuje albo na krytyczne braki w przetwarzanych danych, albo na podanie złej wartości argumentu `rokMonitoringu` w wywołaniu `przygotuj_tabele_posrednie()`, w związku z czym użytkownik otrzyma teraz odpowiednie ostrzeżenie.
 
 ## Inne zmiany
 
