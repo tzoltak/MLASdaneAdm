@@ -657,25 +657,23 @@ przygotuj_tabele_posrednie <- function(
                 by = c("id_abs", "rok_abs", "okres")) %>%
       left_join(t34512m,
                 by = c("id_abs", "rok_abs", "okres")) %>%
-      mutate(nauka_szk_abs =
+      mutate(status_nieustalony =
+               if_else(is.na(status_nieustalony), 1L, status_nieustalony),
+             across(starts_with("nauka"), ~if_else(is.na(.), 0L, as.integer(.))),
+             nauka_szk_abs =
                if_else(okres <= (12L*rok_abs + 6L), 1L, 0L)) %>%
       group_by(id_abs, rok_abs) %>%
       mutate(nauka_szk_abs =
                if_else(okres >= (12L*rok_abs + 7L) &
                          okres <= (12L*rok_abs + 9L) &
-                         (cumsum(ifelse(okres < (12L*rok_abs + 7L) |
-                                          okres > (12L*rok_abs + 9L),
-                                        0L, 1L)) < 0L | nauka2 == 0L) &
+                         nauka2 == 0L &
                          # sztuczka z sum() żeby nie wybuchało, jeśli w danych
                          # brak obserwacji spełniającej warunek okres == (12L*rok_abs + 10L)
                          (sum(0L, cumsum(nauka2)[okres == (12L*rok_abs + 10L)]) -
                             cumsum(nauka2)) > 0L,
                        1L, nauka_szk_abs)) %>%
       ungroup() %>%
-      mutate(status_nieustalony =
-               if_else(is.na(status_nieustalony), 1L, status_nieustalony),
-             across(starts_with("nauka"), ~if_else(is.na(.), 0L, as.integer(.))),
-             mlodoc_ten_sam_platnik =
+      mutate(mlodoc_ten_sam_platnik =
                if_else(is.na(mlodoc_ten_sam_platnik) & !is.na(mlodoc_byl),
                        FALSE, mlodoc_ten_sam_platnik)) %>%
       mutate(kont_mlodoc_prac =
@@ -770,7 +768,8 @@ przygotuj_tabele_posrednie <- function(
                   distinct() %>%
                   mutate(abs_w_zus = TRUE),
                 by = c("id_abs", "rok_abs")) %>%
-      mutate(across(starts_with("abs_w_"), ~if_else(is.na(.), FALSE, .)),
+      mutate(plec = as.character(plec), # pozbywanie się typu 'pq_plec'
+             across(starts_with("abs_w_"), ~if_else(is.na(.), FALSE, .)),
              across(starts_with("l_prac_"), ~if_else(is.na(.), 0L, .)))
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
@@ -784,6 +783,7 @@ przygotuj_tabele_posrednie <- function(
                                   podst_maks, podst_emer)) %>%
       mutate(podst_maks = if_else(podst_maks > podst_zdrow,
                                   podst_maks, podst_zdrow)) %>%
+      mutate(podst_maks = as.numeric(podst_maks)) %>% # pozbywanie się typu 'integer64'
       left_join(tbl(con, "w22") %>%
                   select(kod_zus, etat = etat_ibe, netat = netat_ibe,
                          samoz = samoz_ela, inne = inne_ibe, mlodoc,

@@ -1,3 +1,10 @@
+# MLASdaneAdm 0.4.1 (6.01.2024)
+
+## Naprawione błędy
+
+-   Funkcja `przygotuj_tabele_posrednie()` poprawnie wypełnia wartości zmiennej `nauka_szk_abs` w sytuacji, gdy mają one wskazywać na kontynuowanie nauki w okresie wakacji pomiędzy (założonym) ukończeniem szkoły, jako absolwent której ktoś został objęty monitoringiem a podjęciem nauki bezpośrednio z początkiem kolejnego roku szkolnego (wcześniej służący temu kod nie działał, bo był uruchamiany zanim w zmiennej `nauka2` braki danych zostały zastąpione przez 0).
+-   Funkcja `przygotuj_tabele_posrednie()` konwertuje nietypowe formaty zmiennych zwrócone przez interfejs PostgreSQLa (*pq_plec* dla płci i *integer64*) na typowe formaty R, co pozwala uniknąć problemów przy ich późniejszym wykorzystaniu.
+
 # MLASdaneAdm 0.4.0 (27.09.2023)
 
 ## Nowe funkcjonalności
