@@ -606,6 +606,9 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     group_by(ID_ABS, ROK_ABS, ROK_MATURA) %>%
     slice(1L) %>%
     ungroup()
+  if (!any(tabeleWejsciowe$W7$ROK_MATURA < min(tabeleWejsciowe$W7$ROK_ABS))) {
+    warning("W danych dot. wyników matury (W7) nie ma rekordów opisujących egzaminy z lat wcześniejszych, niż najwcześniejszy z lat ukończenia szkoły (ROK_ABS). Dane te są najprawdopodobniej niekompletne!")
+  }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W7 (wyniki egzaminu maturalnego)...")
     dbExecute(con,

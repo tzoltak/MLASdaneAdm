@@ -182,8 +182,7 @@ przygotuj_tabele_posrednie <- function(
       inner_join(tbl(con, "w7") %>%
                    filter(czy_zdana_matura, !is.na(data_swiad_matura)) %>%
                    group_by(id_abs, rok_abs) %>%
-                   slice_min(order_by = c(data_swiad_matura, rok_matura),
-                             n = 1L) %>%
+                   slice_min(order_by = data_swiad_matura, n = 1L) %>%
                    ungroup() %>%
                    mutate(rodzaj_dyplomu = "matura",
                           rok_dyplom = year(data_swiad_matura),

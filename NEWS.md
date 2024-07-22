@@ -1,3 +1,13 @@
+# MLASdaneAdm 0.4.2 (21.02.2024)
+
+## Ulepszona diagnostyka
+
+-   `wczytaj_tabele_wejsciowe()` sprawdza, czy w pliku `W7.csv` znajdują sie dane o maturach z lat wcześniejszych, niż rok ukończenia szkoły przez najmłodszy rocznik absolwentów objętych monitoringiem, a jeśli takich nie znajdzie, generuje ostrzeżenie.
+
+## Inne zmiany
+
+-   W związku ze zmianami w API dplyr-a, które dopuszcza teraz podawanie tylko jednej kolumny jako argumentu `order_by` w wywołaniach `slice_min()` i `slice_max()`, uproszczono wywołanie `slice_min()` przy tworzeniu *tablicy pośredniej* `p1`.
+
 # MLASdaneAdm 0.4.1 (6.01.2024)
 
 ## Naprawione błędy
