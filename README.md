@@ -89,7 +89,7 @@ baza <- list(drv = RPostgres::Postgres(),
 CREATE TYPE plec AS ENUM ('K', 'M');
 CREATE TYPE profil_stu AS ENUM ('P', 'O', 'N');
 CREATE TYPE adres_typ AS ENUM ('meld', 'zam', 'koresp');
-CREATE TYPE rodzaj_dyplomu AS ENUM ('tytuł czeladnika', 'matura', 'certyfikat kwalifikacji', 'dyplom zawodowy', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza');
+CREATE TYPE rodzaj_dyplomu AS ENUM ('tytuł czeladnika', 'matura', 'certyfikat kwalifikacji', 'dyplom zawodowy', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera');
 
 CREATE TABLE w1 (
 	id_abs int,
@@ -106,7 +106,7 @@ CREATE TABLE w20a (
 /* uwaga! mapowanie zawodów na branże jest 1:n (są tu też stare klasyfikacje) */
 CREATE TABLE w20 (
 	kod_zaw int REFERENCES w20a (kod_zaw),
-	wersja_klasyfikacji int CHECK (wersja_klasyfikacji IN (1, 2, 3)),
+	wersja_klasyfikacji int CHECK (wersja_klasyfikacji IN (1, 2, 3, 4)),
 	branza text CHECK (branza != ''),
 	branza_kod text CHECK (branza_kod != ''),
 	PRIMARY KEY (kod_zaw, wersja_klasyfikacji)
@@ -365,7 +365,7 @@ CREATE TABLE p1 (
 	id_abs int,
 	rok_abs int,
 	rodzaj_dyplomu rodzaj_dyplomu,
-	dyplom_szczegoly text CHECK (CASE WHEN rodzaj_dyplomu IN ('certyfikat kwalifikacji', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza') THEN dyplom_szczegoly IS NOT NULL ELSE dyplom_szczegoly IS NULL END),
+	dyplom_szczegoly text CHECK (CASE WHEN rodzaj_dyplomu IN ('certyfikat kwalifikacji', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera') THEN dyplom_szczegoly IS NOT NULL ELSE dyplom_szczegoly IS NULL END),
 	okres_dyplom int,
 	lp_dyplom int,
 	kod_zaw int REFERENCES w20a (kod_zaw),
@@ -376,7 +376,7 @@ CREATE TABLE p1 (
 	dyscyplina_wiodaca text,
 	PRIMARY KEY (id_abs, rok_abs, rodzaj_dyplomu, lp_dyplom),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE,
-	UNIQUE (id_abs, rok_abs, kod_zaw, rodzaj_dyplomu, dyplom_szczegoly, okres_dyplom)
+	UNIQUE (id_abs, rok_abs, kod_zaw, rodzaj_dyplomu, dyplom_szczegoly, dziedzina, dyscyplina_wiodaca, okres_dyplom)
 );
 CREATE TABLE p2 (
 	id_abs int,

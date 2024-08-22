@@ -139,14 +139,15 @@ przygotuj_tabele_posrednie <- function(
 
   # Półfabrykaty do P1 i P2 ####################################################
   if (przygotujP1 | przygotujP2 | przygotujP4) {
-    # mapowanie kodów zawodów na branże i ew. obszary z preferencją na przypisanie
-    # do branży (w sensie takiej z KZSB, w odróżnieniu od obszaru)
+    # mapowanie kodów zawodów na branże i ew. obszary z preferencją na
+    # najnowszą wersję klasyfikacji
     t20 <- tbl(con, "w20") %>%
-      select(kod_zaw, branza) %>%
+      select(kod_zaw, branza, wersja_klasyfikacji) %>%
       distinct() %>%
       group_by(kod_zaw) %>%
-      slice_max(grepl("^branża", branza), n = 1L) %>%
-      ungroup()
+      slice_max(wersja_klasyfikacji, n = 1L) %>%
+      ungroup() %>%
+      select(-wersja_klasyfikacji)
     # absolwenci z informacją o ew. zawodzie i dołączoną informacją o branży
     t2 <- tbl(con, "w2") %>%
       select(id_abs, rok_abs, kod_zaw) %>%
@@ -248,6 +249,7 @@ przygotuj_tabele_posrednie <- function(
                                             tolower(tytul_zaw_stu)) ~ "dyplom magistra/lekarza",
                                       grepl("licencjat|inżynier",
                                             tolower(tytul_zaw_stu)) ~ "dyplom licencjata/inżyniera",
+                                      tytul_zaw_stu == "Oficer dyplomowany" ~ "dyplom oficera",
                                       TRUE ~ tytul_zaw_stu),
                           rok_dyplom = year(data_do_stu),
                           miesiac_dyplom = month(data_do_stu)) %>%
@@ -258,7 +260,8 @@ przygotuj_tabele_posrednie <- function(
                           dyscyplina_wiodaca = dyscyplina),
                  by = c("id_abs", "rok_abs")) %>%
       select(id_abs, rok_abs, kod_zaw, branza, rodzaj_dyplomu, dyplom_szczegoly,
-             rok_dyplom, miesiac_dyplom, dziedzina, dyscyplina_wiodaca)
+             rok_dyplom, miesiac_dyplom, dziedzina, dyscyplina_wiodaca) %>%
+      distinct()
     # łączenie i wczytywanie do P1
     tabelePosrednie$p1 <- bind_rows(collect(t6),
                                     collect(t7),
@@ -578,6 +581,7 @@ przygotuj_tabele_posrednie <- function(
                                   podst_maks, podst_emer)) %>%
       mutate(podst_maks = if_else(podst_maks > podst_zdrow,
                                   podst_maks, podst_zdrow)) %>%
+      mutate(podst_maks = as.numeric(podst_maks)) %>%
       left_join(tbl(con, "w22") %>%
                   select(kod_zus, etat = etat_ibe, netat = netat_ibe,
                          samoz = samoz_ela, inne = inne_ibe, mlodoc,

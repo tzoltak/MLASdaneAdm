@@ -14,7 +14,9 @@
 #' zestawienia wykrytych we wczytanych plikach problemów w formie plików CSV?
 #' @param usunAbsWKilkuZaw czy absolwenci, którzy ukończyli kilka różnych
 #' zawodów w tej samej szkole, \strong{niebędącej szkołą policealną} powinni
-#' zostać wykluczeni z importu?
+#' zostać wykluczeni z importu? (W edycjach monitoringu \strong{2021 i 2022}
+#' tacy absolwenci \strong{nie} byli usuwani. Od edycji \strong{2023} są jednak
+#' usuwani.)
 #' @param plikLogu opcjonalnie nazwa pliku, do którego ma być zapisany log
 #' wywołania funkcji
 #' @details Dane wejściowe powinny obejmować \strong{tylko jeden rok prowadzenia
@@ -77,6 +79,8 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   brakujaceKolumny <- setNames(vector(mode = "list",
                                       length = length(tabeleWejsciowe)),
                                names(tabeleWejsciowe))
+  brakiIdAbs <- setNames(rep(NA_integer_, length(tabeleWejsciowe)),
+                         names(tabeleWejsciowe))
   for (i in seq_along(tabeleWejsciowe)) {
     cat("Wczytywanie pliku", tabeleWejsciowe[[i]], "\n")
     tabeleWejsciowe[[i]] <- arrow::read_delim_arrow(tabeleWejsciowe[[i]],
@@ -87,9 +91,20 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
       cat("  Brakuje wymaganych kolumn: '",
           paste0(brakujaceKolumny[[i]], collapse = "', '"), "'\n", sep = "")
     }
+    if ("ID_ABS" %in% names(tabeleWejsciowe[[i]])) {
+      brakiIdAbs[i] <- sum(tabeleWejsciowe[[i]] %>%
+                             select(any_of(c("ID_ABS", "ROK_ABS"))) %>%
+                             is.na() %>%
+                             rowSums() > 0L)
+      if (brakiIdAbs[i] > 0L) {
+        cat(" W kolumnnie ID_ABS lub ROK_ABS występują braki danych w ",
+            brakiIdAbs[i], " rekordach.\n", sep = "")
+      }
+    }
   }
-  if (sum(sapply(brakujaceKolumny, length)) > 0L) {
-    stop("Brak wymaganych kolumn w co najmniej jednym z wczytywanych plików (p. informacje powyżej).")
+  if (sum(sapply(brakujaceKolumny, length)) > 0L ||
+      sum(brakiIdAbs, na.rm = TRUE) > 0L) {
+    stop("Brak wymaganych kolumn lub braki danych w kolumnach ROK_ABS lub ID_ABS w co najmniej jednym z wczytywanych plików (p. informacje powyżej).")
   }
   cat("\nPoczątek przetwarzania danych: ",
       format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
@@ -131,7 +146,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                    "\nJeżeli chcesz móc sprawdzić, którzy to absolwenci, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
     if (zapiszProblemy) {
       write.csv2(brakujacyW2, "absolwenci-w-W1-ale-nie-w-W2.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
     tabeleWejsciowe$W1 <- tabeleWejsciowe$W1 %>%
       semi_join(tabeleWejsciowe$W2,
@@ -158,7 +173,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                    "\nJeżeli chcesz móc sprawdzić, które to ID absolwenta, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
     if (zapiszProblemy) {
       write.csv2(duplikatyIdW2, "duplikaty-ID-absolwenta.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
     tabeleWejsciowe$W1 <- tabeleWejsciowe$W1 %>%
       anti_join(duplikatyId,
@@ -194,7 +209,8 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     mutate(n_zaw = factor(n_zaw, sort(unique(n_zaw)))) %>%
     pivot_wider(names_from = n_zaw, values_from = n, names_prefix = "n_zaw",
                 names_sort = TRUE, values_fill = 0L) %>%
-    filter(max_n_zaw > 1L)
+    filter(max_n_zaw > 1L) %>%
+    mutate(czy_usunieci = usunAbsWKilkuZaw | TYP_SZK == 19L)
   multiAbsolwenci <- multiAbsolwenci %>%
     ungroup() %>%
     filter(n_zaw > 1L, TYP_SZK != 19L)
@@ -210,6 +226,16 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                   by = c("ID_ABS", "ROK_ABS"))
     }
   }
+  if (nrow(multiAbsolwenciSzkoly) > 0L) {
+    message("\nW danych wystąpiły szkoły (włączając szkoły policealne), w których niektóre osoby są absolwentami więcej niż jednego zawodu.",
+            ifelse(zapiszProblemy,
+                   "\nZestawienie tych szkół zostanie zapisane w pliku 'szkoły-z-multiabsolwentami.csv'.",
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+    if (zapiszProblemy) {
+      write.csv2(multiAbsolwenciSzkoly, "szkoły-z-multiabsolwentami.csv",
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
+    }
+  }
   # identyfikacja zawodów przypisanych do więcej niż jednej branży #############
   tabeleWejsciowe$W20 <- tabeleWejsciowe$W20 %>%
     bind_rows(tabeleWejsciowe$W20aneks %>%
@@ -220,8 +246,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     mutate(BRANZA = sub(paste0("^(", paste(unique(BRANZA_KOD), collapse = "|"),
                                ") - "),
                         "", BRANZA),
-           WERSJA_KLASYFIKACJI = if_else(BRANZA_KOD == "ndt.",
-                                         3L, nchar(BRANZA_KOD))) %>%
+           WERSJA_KLASYFIKACJI = case_when(BRANZA_KOD == "ndt." ~ 3L,
+                                           BRANZA %in% c("branża chemiczna i ochrony środowiska",
+                                                         "branża poligraficzno-księgarska") ~ 4L,
+                                           .default = nchar(BRANZA_KOD))) %>%
     distinct() %>%
     filter(!is.na(BRANZA), BRANZA != '')
   zawodyPrzypisaneDoWieluBranz <- tabeleWejsciowe$W20 %>%
@@ -368,7 +396,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     if (zapiszProblemy) {
       write.csv2(zawodyBezMapowania,
                  "kody-zawodów-bez-przypisania-do-branż.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
   ## W2 (stałe w czasie charakterystyki absolwentów) ###########################
@@ -392,16 +420,6 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                 unname())
     cat(" zakończony.")
   }
-  if (nrow(multiAbsolwenciSzkoly) > 0L) {
-    message("\nWykryto szkoły (włączając szkoły policealne), w których niektóre osoby są absolwentami więcej niż jednego zawodu.",
-            ifelse(zapiszProblemy,
-                   "\nZestawienie tych szkół zostanie zapisane w pliku 'szkoły-z-multiabsolwentami.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
-    if (zapiszProblemy) {
-      write.csv2(multiAbsolwenciSzkoly, "szkoły-z-multiabsolwentami.csv", row.names = FALSE,
-                 fileEncoding = "UTF-8")
-    }
-  }
   ## W3 (kontynuacja nauki w szkołach objętych SIO) ############################
   tabeleWejsciowe$W3 <- tabeleWejsciowe$W3 %>%
     left_join(tabeleWejsciowe$STYPSZK %>%
@@ -424,9 +442,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     ungroup()
   ### zestawienie z kontynuacją w wielu zawodach w tej samej szkole ############
   multiAbsolwenciKont <- tabeleWejsciowe$W3 %>%
-    group_by(ID_SZK_KONT, TYP_SZK_KONT, DATA_OD_SZK_KONT, ID_ABS) %>%
-    summarise(n_zaw = n(), .groups = "drop_last") %>%
-    count(n_zaw) %>%
+    count(ID_SZK_KONT, TYP_SZK_KONT, DATA_OD_SZK_KONT, ID_ABS, ROK_ABS,
+          name = "n_zaw") %>%
+    count(ID_SZK_KONT, TYP_SZK_KONT, DATA_OD_SZK_KONT, n_zaw) %>%
+    group_by(ID_SZK_KONT, TYP_SZK_KONT, DATA_OD_SZK_KONT) %>%
     mutate(max_n_zaw = max(n_zaw)) %>%
     ungroup() %>%
     mutate(n_zaw = factor(n_zaw, sort(unique(n_zaw)))) %>%
@@ -482,7 +501,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     if (zapiszProblemy) {
       write.csv2(multiAbsolwenciKont,
                  "szkoły-z-multiabsolwentami-kontynuacja-nauki.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
   if (nrow(kontynuacjaWsteczna) > 0L) {
@@ -493,7 +512,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     if (zapiszProblemy) {
       write.csv2(kontynuacjaWsteczna,
                  "nauka-w-szkole-ktorej-absolwentem-w-kontynuacji-nauki.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
   ## W21a i W21 (słownik kwalifikacji i przypisanie kwalifikacji do zawodów) ####
@@ -590,7 +609,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
       write.csv2(tabeleWejsciowe$W6 %>%
                    filter(n > 1),
                  "wielokrotni-czeladnicy.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
   ## W7 (matury) ###############################################################
@@ -607,7 +626,37 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     slice(1L) %>%
     ungroup()
   if (!any(tabeleWejsciowe$W7$ROK_MATURA < min(tabeleWejsciowe$W7$ROK_ABS))) {
-    warning("W danych dot. wyników matury (W7) nie ma rekordów opisujących egzaminy z lat wcześniejszych, niż najwcześniejszy z lat ukończenia szkoły (ROK_ABS). Dane te są najprawdopodobniej niekompletne!")
+    message("\nW danych dot. wyników matury (W7) nie ma rekordów opisujących egzaminy z lat wcześniejszych, niż rok ukończenia szkoły dla ROK_ABS równych: ",
+            tabeleWejsciowe$W7 %>%
+              group_by(ROK_ABS) %>%
+              summarise(brakWczesniejszychWynikow = !any(ROK_MATURA < ROK_ABS)) %>%
+              filter(brakWczesniejszychWynikow) %>%
+              pull(ROK_ABS) %>%
+              paste(collapse = ", "),
+            ". Dane te są najprawdopodobniej niekompletne!")
+  }
+  ## Szybki test (nie)kompletności danych o wynikach matury ####################
+  diagnostykaKompletnosciMatura <- tabeleWejsciowe$W2 %>%
+    filter(TYP_SZK %in% c("Bednarska Szkoła Realna",
+                          "Liceum ogólnokształcące",
+                          "Technikum")) %>%
+    select(ID_ABS, ROK_ABS, TYP_SZK) %>%
+    distinct() %>%
+    left_join(tabeleWejsciowe$W7,
+              by = c("ID_ABS", "ROK_ABS")) %>%
+    group_by(TYP_SZK, ROK_ABS) %>%
+    summarise(zdawal_mature_pct = round(100*mean(!is.na(ROK_MATURA)), 2),
+              .groups = "drop")
+  if (any(diagnostykaKompletnosciMatura$zdawal_mature_pct < 80)) {
+    message("\nDane o wynikach matury (tabela 'W7') wyglądają na niekompletne.",
+            ifelse(zapiszProblemy,
+                   "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'matura-kompletnosc.csv'.",
+                   "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o wynikach matury, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+  }
+  if (zapiszProblemy) {
+    write.csv2(diagnostykaKompletnosciMatura,
+               "matura-kompletnosc.csv",
+               row.names = FALSE, na = "", fileEncoding = "UTF-8")
   }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W7 (wyniki egzaminu maturalnego)...")
@@ -669,7 +718,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     if (zapiszProblemy) {
       write.csv2(multiKwal,
                  "wielokrotne-kwalifikacje.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
   ## W9 i W11 (dyplomy zawodowe) ###############################################
@@ -725,11 +774,42 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     if (zapiszProblemy) {
       write.csv2(multiDypZaw,
                  "wielokrotne-dyplomy.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
+  }
+  ## Szybki test (nie)kompletności danych o egzaminach zawodowych ##############
+  diagnostykaKompletnosciEgzZaw <- tabeleWejsciowe$W2 %>%
+    filter(!is.na(KOD_ZAW)) %>%
+    select(ID_ABS, ROK_ABS, TYP_SZK) %>%
+    distinct() %>%
+    left_join(bind_rows(tabeleWejsciowe$W8,
+                        tabeleWejsciowe$W10) %>%
+                select(ID_ABS, ROK_ABS) %>%
+                distinct() %>%
+                mutate(swiadectwo = 1),
+              by = c("ID_ABS", "ROK_ABS")) %>%
+    left_join(bind_rows(tabeleWejsciowe$W9,
+                        tabeleWejsciowe$W11) %>%
+                select(ID_ABS, ROK_ABS) %>%
+                distinct() %>%
+                mutate(dyplom = 1),
+              by = c("ID_ABS", "ROK_ABS")) %>%
+    mutate(across(c(swiadectwo, dyplom), ~if_else(is.na(.), 0, .))) %>%
+    group_by(TYP_SZK, ROK_ABS) %>%
+    summarise(across(c(swiadectwo, dyplom), list(pct = ~round(100*mean(.), 2))),
+              .groups = "drop")
+  if (any(diagnostykaKompletnosciEgzZaw$swiadectwo_pct < 40) ||
+      any(diagnostykaKompletnosciEgzZaw$dyplom_pct < 35)) { # te kryteria są dopasowane do BS I, w których wygląda to dosyć smutno, i można rozważyć ich wariantowanie po typie szkoły
+    message("\nDane o certyfikatach lub dyplomach zawodowych (tabele 'W8', 'W9', 'W10' i 'W11') wyglądają na niekompletne.",
+            ifelse(zapiszProblemy,
+                   "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'certyfikaty-i-dyplomy-kompletnosc.csv'.",
+                   "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o certyfikatach i dyplomach, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
   }
   ## Tabela do diagnozowania kompletności danych z OKE #########################
   if (zapiszProblemy) {
+    write.csv2(diagnostykaKompletnosciEgzZaw,
+               "certyfikaty-i-dyplomy-kompletnosc.csv",
+               row.names = FALSE, na = "", fileEncoding = "UTF-8")
     tabeleWejsciowe$W2 %>%
       filter(!is.na(KOD_ZAW)) %>%
       mutate(wojewodztwo = floor(TERYT_SZK / 100000)) %>%
@@ -774,7 +854,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                   names_sep = ": ", names_vary = "slowest",
                   values_from = c(tylko_swiadectwo, dyplom)) %>%
       write.csv2("kompletnosc-danych-o-egzaminach.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
   }
   ## W24 (mapowanie kodów zawodów KZSB na ISCED-F) #############################
   if (anyNA(tabeleWejsciowe$W24) || any(tabeleWejsciowe$W24 == '')) {
@@ -809,7 +889,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     if (zapiszProblemy) {
       write.csv2(zawodyBezMapowania,
                  "kody-zawodów-bez-przypisania-do-ISCED-F.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
   ## W13 (przypisanie kierunków studiów do dziedzin i dyscyplin) ###############
@@ -1018,7 +1098,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
             ".\nRozważ uzupełnienie mapowania w pliku 'W22.csv'.")
     if (zapiszProblemy) {
       write.csv2(zawodyBezMapowania, "kody-ZUS-niewystępujące-w-W22.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
   ## W23 (mapowanie kodów przerw w opłacaniu składek ZUS) ######################
@@ -1069,8 +1149,8 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
             paste(unique(kodyPrzerwBezMapowania$KOD_PRZERWY), collapse = ", "),
             ".\nRozważ uzupełnienie mapowania w pliku 'W23.csv'.")
     if (zapiszProblemy) {
-      write.csv2(zawodyPrzerwMapowania, "kody-przerw-ZUS-niewystępujące-w-W23.csv",
-                 row.names = FALSE, fileEncoding = "UTF-8")
+      write.csv2(kodyPrzerwBezMapowania, "kody-przerw-ZUS-niewystępujące-w-W23.csv",
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
   dbExecute(con, "COMMIT;")

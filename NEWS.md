@@ -1,8 +1,37 @@
+# MLASdaneAdm 0.4.3 (29.08.2024)
+
+## Ulepszona diagnostyka
+
+-   Funkcja `wczytaj_tabele_wejsciowe()`:
+    -   sprawdza, czy kolumny `ID_ABS` i `ROK_ABS` we wczytywanych plikach (w których te kolumny występują) nie zawierają braków danych;
+    -   zapisuje w pliku `szkoły-z-multiabsolwentami.csv` dodatkową kolumnę opisującą, czy osoby będące absolwentami danej szkoły jednocześnie w kilku różnych zawodach zostały usunięte z wczytywanych danych, czy nie;
+    -   sprawdza kompletność przypisania danych o certyfikatach i dyplomach zawodowych oraz świadectwach maturalnych i zapisuje odpowiednie zestawienia w plikach `matura-kompletnosc.csv` i `certyfikaty-i-dyplomy-kompletnosc.csv`.
+
+## Naprawione błędy
+
+-   Funkcja `wczytaj_tabele_wejsciowe()` tworząc zestawienie szkół, w których absolwenci kontynuują naukę, w których te same osoby są absolwentami więcej niż jednego zawodu (zapisywane w pliku `szkoły-z-multiabsolwentami-kontynuacja-nauki.csv`) grupuje po kombinacji (`ID_ABS`, `ROK_ABS`), zamiast po samym `ID_ABS`.
+-   Funkcja `przygotuj_tabele_posrednie()` konwertuje wynagrodzenia z formatu *integer64* na *numeric* również tworząc tabelę `p3` (wcześniejsza poprawka z wersji 0.4.1 nieintencjonalnie ograniczyła się do tworzenia tabeli `p5`).
+
+## Dostosowania do zmian klasyfikacji
+
+-   Przy wczytywaniu pliku `W20.csv` wyróżnia się nową wersję klasyfikacji branżowej (oznaczana jako `4L`) - oznaczane są nią wyłącznie przypisania do dwóch branż, których nazwy uległy zmianie w 2023 r. (*branża chemiczna* -> *branża chemiczna i ochrony środowiska*, *branża poligraficzna* -> *branża poligraficzno-księgarska*), w ich nowym brzmieniu. Pozwala to zachować dotychczasową strukturę klucza podstawowego tabeli `w20` w bazie danych.
+
+## Dostosowania do danych opisujących kontynuację nauki na studiach magisterskich
+
+-   Zaktualizowano definicję typu danych `rodzaj_dyplomu` w kodzie SQL tworzącym bazę, tak aby akceptował on oficerów dyplomowanych - jeden taki pojawił się w danych obejmujących 5 lat od ukończenia szkoły.
+-   Zaktualizowano CHECK na kolumnie `dyplom_szczegoly` tabeli pośredniej `p1` w kodzie SQL tworzącym bazę, tak aby obejmował dyplom oficera.
+-   Rozszerzono kombinację kolumn tabeli pośredniej `p1` objętą założeniem unikalności w kodzie SQL tworzącym bazę, tak aby była ona spełniana również wtedy, gdy ta sama osoba ukończyła w tym samym czasie kilka różnych kierunków studiów.
+-   Funkcja `przygotuj_tabele_posrednie` usuwa duplikaty danych o dyplomach studiów włączanych do tabeli pośredniej `p1`, które mogą pojawić się w związku z tym, że ta sama osoba studiowała jednocześnie więcej niż jeden kierunek w ramach tej samej dziedziny i z tą samą dyspliną wiodącą (co okazało się zdarzać w przypadku studiów magisterskich).
+
+## Drobne ulepszenia
+
+-   Funkcja `wczytaj_tabele_wejsciowe()` zapisując pliki CSV z zestawieniami problemów używa argumentu `na=''` (tj. zapisuje braki danych jako pustą komórkę), co czyni pliki łatwiejszymi w odbiorze przy ich przeglądaniu w zewnętrznych aplikacjach.
+
 # MLASdaneAdm 0.4.2 (21.02.2024)
 
 ## Ulepszona diagnostyka
 
--   `wczytaj_tabele_wejsciowe()` sprawdza, czy w pliku `W7.csv` znajdują sie dane o maturach z lat wcześniejszych, niż rok ukończenia szkoły przez najmłodszy rocznik absolwentów objętych monitoringiem, a jeśli takich nie znajdzie, generuje ostrzeżenie.
+-   Funkcja `wczytaj_tabele_wejsciowe()` sprawdza, czy w pliku `W7.csv` znajdują sie dane o maturach z lat wcześniejszych, niż rok ukończenia szkoły przez najmłodszy rocznik absolwentów objętych monitoringiem, a jeśli takich nie znajdzie, generuje ostrzeżenie.
 
 ## Inne zmiany
 

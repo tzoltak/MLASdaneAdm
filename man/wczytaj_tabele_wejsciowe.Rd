@@ -30,7 +30,9 @@ zestawienia wykrytych we wczytanych plikach problemów w formie plików CSV?}
 
 \item{usunAbsWKilkuZaw}{czy absolwenci, którzy ukończyli kilka różnych
 zawodów w tej samej szkole, \strong{niebędącej szkołą policealną} powinni
-zostać wykluczeni z importu?}
+zostać wykluczeni z importu? (W edycjach monitoringu \strong{2021 i 2022}
+tacy absolwenci \strong{nie} byli usuwani. Od edycji \strong{2023} są jednak
+usuwani.)}
 
 \item{plikLogu}{opcjonalnie nazwa pliku, do którego ma być zapisany log
 wywołania funkcji}

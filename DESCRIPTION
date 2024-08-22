@@ -1,14 +1,13 @@
 Package: MLASdaneAdm
 Type: Package
 Title: Pakiet do zlaczania danych na potrzeby projektu MLEZAiMD
-Version: 0.4.2
+Version: 0.4.3
 Authors@R: c(person("Tomasz", "Żółtak", email = "tomek@zozlak.org", role = c("aut", "cre")))
 Description: Pakiet do złączania danych z rejestrów, baz danych administracyjnych,
     baz danych wyników egzaminów i wyników badań sondażowych na potrzeby
     prowadzenia monitoringu dalszych losów edukacyjnych i zawodowych absolwentów
     polskich szkół ponadpodstawowych.
 License: MIT + file LICENSE
-LazyData: TRUE
 Depends: R (>= 3.3.0)
 Imports:
     dplyr (>= 1.1.2),
@@ -17,9 +16,6 @@ Imports:
     arrow (>= 5.0.0.2),
     DBI
 Suggests:
-    RPostgres,
-    knitr,
-    rmarkdown
-VignetteBuilder: knitr
+    RPostgres
 Encoding: UTF-8
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
