@@ -1,7 +1,7 @@
 Package: MLASdaneAdm
 Type: Package
 Title: Pakiet do zlaczania danych na potrzeby projektu MLEZAiMD
-Version: 0.4.3
+Version: 1.0.0
 Authors@R: c(person("Tomasz", "Żółtak", email = "tomek@zozlak.org", role = c("aut", "cre")))
 Description: Pakiet do złączania danych z rejestrów, baz danych administracyjnych,
     baz danych wyników egzaminów i wyników badań sondażowych na potrzeby
@@ -16,6 +16,10 @@ Imports:
     arrow (>= 5.0.0.2),
     DBI
 Suggests:
+    MLASZdane,
     RPostgres
 Encoding: UTF-8
+Language: pl
+Roxygen: list(markdown = TRUE)
+NeedsCompilation: no
 RoxygenNote: 7.3.2

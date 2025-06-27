@@ -15,8 +15,8 @@ wczytaj_tabele_wejsciowe(
 }
 \arguments{
 \item{baza}{uchwyt połączenia do bazy lub lista argumentów do funkcji
-\code{\link[DBI]{dbConnect}} umożliwiających nawiązanie połączenia z bazą
-danych, w której mają zostać zapisane wczytwane dane}
+\code{\link[DBI:dbConnect]{DBI::dbConnect()}} umożliwiających nawiązanie połączenia z bazą
+danych, w której mają zostać zapisane wczytywane dane}
 
 \item{folder}{opcjonalnie ścieżka do folderu zawierającego pliki CSV z danymi
 (domyślnie używany jest aktywny katalog roboczy)}
@@ -42,7 +42,7 @@ wywołania funkcji}
 }
 \description{
 Funkcja szuka w podanym folderze plików CSV z danymi
-z \emph{tabel wejściowych}, wczytuje je, kontroluje ich spójność i zapisuje
+z tabel \emph{wejściowych}, wczytuje je, kontroluje ich spójność i zapisuje
 do bazy.
 }
 \details{
@@ -51,5 +51,5 @@ monitoringu}, ale mogą obejmować \strong{kilka różnych okresów od ukończen
 szkoły}.
 }
 \seealso{
-\code{\link{tabele_wejsciowe}}
+\code{\link[=tabele_wejsciowe]{tabele_wejsciowe()}}
 }
