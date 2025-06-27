@@ -1,37 +1,89 @@
-# MLASdaneAdm 0.4.3 (29.08.2024)
+# MLASdaneAdm 1.0.0 (27.06.2025)
+
+## Nowa tabela wejściowa
+
+-   W26, zawierająca dane szkół z RSPO, ale także idPodmiot organu prowadzącego z SIO.
+
+## Ulepszony import tabel wejściowych
+
+-   `wczytaj_tabele_wejsciowe()` zamienia twarde spacje w nazwach zawodów na zwykłe i usuwa spacje na końcu nazw zawodów.
+
+## Zmiany w tworzeniu tabel pośrednich
+
+-   Wartości domyślne parametrów `przygotuj_tabele_posrednie()`:
+    -   rekordy w P3 są domyślnie tworzone tylko do marca roku prowadzenia monitoringu (w pierwszych edycjach ZUS wyrabiał się z zapewnieniem kompletnych danych do maja, ale obecnie już tylko do marca),
+    -   rekordy w P2 są domyślnie tworzone zarówno dla grudni jak i dla czerwców (wcześniej tylko dla grudni).
+-   Rozszerzono zestaw zmiennych opisujących daty (miesiące) w P1, P2, P3 i P5 o zmienne `rok`, `miesiac` i `mies_od_ukoncz` (miesiąc od czerwca roku zostania absolwentem).
+-	  Nazwy zmiennych `okres_dyplom` w P1 i `okres_kont` w P2 zmieniono na `okres`.
+-   W P1 zmienna `dyplom_szczegoly` jest tworzona jako czynnik (*factor*).
+-   Gruntownie zmieniono format P2:
+    -   teraz opisuje ona wszystkie kontynuacje nauki - **w tym w szkołach ogólnokształcących** - w **czerwcach** i **grudniach**, na poziomie konkretnego szkoło-zawodu (szkoło-dziedzino-dyscypliny wiodącej),
+  	-   odpowiednio rozszerzono zakres zmiennych o identyfikator szkoły, jej typ, formę (rozróżnienie uczniów od uczestników KKZ/KUZ i studentów), teryt powiatu w którym znajduje się szkoła (tylko szkoły z RSPO) oraz kod zawodu,
+  	-   kolumna `zrodlo` zastąpiła kolumnę `branza_kont_zrodlo` i teraz opisuje tabelę (już pojedynczą, a nie zestaw, jak wcześniej), na podstawie której utworzono każdy rekord,
+  	-   przekształcenie do poprzedniej formy jest możliwe przez usunięcie nowych zmiennych (`id_szk_kont`, `typ_szk_kont`, `forma_kont`, `teryt_pow_kont`, `kod_zaw_kont`, `zrodlo`), usunięcie rekordów z brakami danych w zmiennej `branza_kont` i usunięcie zduplikowanych rekordów.
+-   Rozszerzono zestaw zmiennych w P3 i zmieniono zestaw wartości niektórych wcześniej istniejących:
+    -   `status` - tworzona jako czynnik (*factor*) - zawierająca wartości naszego podstawowego wskaźnika analitycznego opisującego 5 statusów edukacyjno-zawodowych,
+  	-   przemianowano `status_nieokreslony` na `brak_danych_z_zus` i `biernosc` na `biernosc_zus`, co lepiej oddaje ich interpretację,
+  	-   sposób tworzenia zmiennych opisujących wyniki z ZUS zmieniono w ten sposób, że przyjmują one wartości niebędące brakami danych również w sytuacji, gdy dla danego absolwenta w danym miesiącu była informacja w tabeli W17 (*przerwy w opłacaniu składek*, czyli *de facto* okresy wypłacania świadczeń przez ZUS), choć nie było w W16 (składki),
+		- 	nie ma to znaczenia dla żadnego z dotychczas raportowanych przez nas wskaźników, bo odnoszą się one wyłącznie do informacji z W16 (wskazujących, że *coś miało miejsce*, więc traktujących brak danych tak samo, jak wartość wskazującą, że dane zdarzenie nie zaszło, choć mamy o danym absolwento-miesiącu dane z ZUS),
+	  -   w zmiennej `dziecko` zintegrowano wcześniejsze zmienne `dziecko` i `dziecko2`, co wiązało się rozszerzeniem zakresu jej wartości do {0, 1, 2},
+    -   zmieniono zakres wartości `kont_mlodoc_prac`, aby uwzględniał pełne przecięcie kontynuowania nauki z (byciem zatrudnionym u tego samego pracodawcy na umowie o pracę vs. w innej formie vs. u innego pracodawcy),
+    -   zmienne opisujące kontynuację nauki (na podstawie informacji z W26):
+		-   nowe zmienne `nauka_bs1st`, `nauka_technikum`, `nauka_artystyczna`, `nauka_sspdp` i `nauka_kpsp` opisująca mniej typowe (w tym w większości wypadków *w zasadzie nielegalne*) formy kontynuacji kształcenia,
+		-	zmienne `nauka_bs1st`, `nauka_bs2st`, `nauka_technikum` rozróżniają szkoły specjalne {2} od tych bez specyfiki {1},
+		-	zmienna `nauka_lo` zastąpiła `nauka_lodd` i rozróżnia szkoły dla dorosłych {1} od dla młodzieży specjalnych {3} i bez specyfiki {2},
+		-	zmienne `nauka_spolic` i `nauka_artystyczna` wyróżniają różne typy tych szkół (w tym - obie - policealne szkoły artystyczne).
+-   Rozszerzono zakres zmiennych w P4:
+    -   zmienna `typ_szk` wyróżnia licea dla dorosłych, a Bednarską Szkołę Realną traktuje jako LO (dzięki dobrodziejstwu dostępu do W26),
+	  -   zmienna `szk_specjalna` pozwala zidentyfikować szkoły specjalne (**nie**będące szkołami specjalnymi przysposabiającymi do pracy),
+  	-   zmienne pozwalające łatwo odsiać zduplikowanych absolwentów: `duplikat_w_szkole`, `duplikat_wiele_szkol`,
+	  -	  zmienne identyfikujące młodocianych absolwentów: `mlodoc_byl` i `typ_szk_mlodoc`,
+	  -   zmienne `plec`, `typ_szk` i `typ_szk_mlodoc` są tworzone jako czynniki (*factor*).
+-   Nowa tabela P6 (będąca nieco rozszerzoną W26), zawierająca dane wszystkich szkół (a docelowo również uczelni) występujących w danych.
+
+## Nowe funkcje (pomocnicze)
+
+-   Związane z konwersjami zmiennych opisujących miesiące (daty):
+    -   `data2rokszk()` i `okres2rokszk()` pozwalają na konwersje odpowiednio dat zapisanych w formacie "%d-%m-%Y" (jak w *tabelach wejściowych*) oraz numerów *okresów* opisujących miesiące, w szczególności w *tabeli pośredniej* P3, na odpowiadające im lata szkolne (opisane ciągiem znaków, np. "2024/2025" lub wartości liczbowe opisujące **pierwszy** rok kalendarzowy w ramach odpowiedniego roku szkolnego).
+    -   `okres2data` pozwala na konwersję numerów *okresów* opisujących miesiące na ciągi znaków opisujące daty w formacie "%d-%m-%Y".
+    -   `okres2rokmiesiac()` została zwektorowana, ale zachowała wsteczną kompatybilność zwracanej wartości w sytuacji, gdy jest wywoływana z pojedynczą wartością.
+    -   `rokmiesiac2okres()` implementująca obliczenie numerów *okresów* na podstawie podanych wartości lat i miesięcy.
+        -   W kodzie `przygotuj_tabele_posrednie()` jest ona teraz wykorzystywana lub nie w zależności od tego, czy przekształcenie ma być wykonane po stronie R, czy po stronie serwera bazy danych (który tej funkcji nie zna, choć w zasadzie można by mu ją zdefiniować, tylko potem trzeba by jeszcze sprawdzić, czy to się da obsłużyć na etapie tłumaczenia kodu na SQL przez *dplyr*).
+-   `przygotuj_dane_do_w19()` automatyzuje proces przekształcania zestawień wartości wskaźników bezrobocia i przeciętnych miesięcznych wynagrodzeń w powiatach, pobranych z BDL przy pomocy funkcji `pobierz_dane_bdl()` z pakietu *MLASZdane*, do formatu tabeli *wejściowej* W19.
+    -   W funkcji zaimplementowano również imputację braków danych wskaźnika przeciętnych wynagrodzeń dla pojedynczych powiatów, zaproponowany i wdrożony wcześniej na potrzeby przygotowywania raportów szkolnych przez Bartka Płatkowskiego. Wykorzystuje on informację o relatywnej zmianie przeciętnych miesięcznych wynagrodzeń w odpowiednim województwie względem roku, dla którego ostatni raz wartość wskaźnika w danym powiecie była znana.
+    -   Wewnętrzne funkcja korzysta z nowych funkcji pomocniczych `przygotuj_zestawienie_brakow_danych()`, `przygotuj_komunikat_o_brakach_wskazniki()`, `przygotuj_komunikat_o_brakach_powiaty()` i `imputuj_wynagrodzenia()`.
+-   `usun_duplikaty()` pozwala usunąć zduplikowane wystąpienia absolwentów (zarówno w ramach jednej szkoły, jak i między szkołami) z przygotowanych tabel *pośrednich*.
+
+## Inne zmiany
+
+-   Kod pakietu został przepisany tak, aby przechodził R CMD CHECK.
+
+# MLASdaneAdm 0.4.3 (22.08.2024)
 
 ## Ulepszona diagnostyka
 
--   Funkcja `wczytaj_tabele_wejsciowe()`:
+-   `wczytaj_tabele_wejsciowe()`:
     -   sprawdza, czy kolumny `ID_ABS` i `ROK_ABS` we wczytywanych plikach (w których te kolumny występują) nie zawierają braków danych;
     -   zapisuje w pliku `szkoły-z-multiabsolwentami.csv` dodatkową kolumnę opisującą, czy osoby będące absolwentami danej szkoły jednocześnie w kilku różnych zawodach zostały usunięte z wczytywanych danych, czy nie;
     -   sprawdza kompletność przypisania danych o certyfikatach i dyplomach zawodowych oraz świadectwach maturalnych i zapisuje odpowiednie zestawienia w plikach `matura-kompletnosc.csv` i `certyfikaty-i-dyplomy-kompletnosc.csv`.
 
 ## Naprawione błędy
 
--   Funkcja `wczytaj_tabele_wejsciowe()` tworząc zestawienie szkół, w których absolwenci kontynuują naukę, w których te same osoby są absolwentami więcej niż jednego zawodu (zapisywane w pliku `szkoły-z-multiabsolwentami-kontynuacja-nauki.csv`) grupuje po kombinacji (`ID_ABS`, `ROK_ABS`), zamiast po samym `ID_ABS`.
--   Funkcja `przygotuj_tabele_posrednie()` konwertuje wynagrodzenia z formatu *integer64* na *numeric* również tworząc tabelę `p3` (wcześniejsza poprawka z wersji 0.4.1 nieintencjonalnie ograniczyła się do tworzenia tabeli `p5`).
+-   `wczytaj_tabele_wejsciowe()` tworząc zestawienie szkół, w których absolwenci kontynuują naukę, w których te same osoby są absolwentami więcej niż jednego zawodu (zapisywane w pliku `szkoły-z-multiabsolwentami-kontynuacja-nauki.csv`) grupuje po kombinacji (`ID_ABS`, `ROK_ABS`), zamiast po samym `ID_ABS`.
 
 ## Dostosowania do zmian klasyfikacji
 
 -   Przy wczytywaniu pliku `W20.csv` wyróżnia się nową wersję klasyfikacji branżowej (oznaczana jako `4L`) - oznaczane są nią wyłącznie przypisania do dwóch branż, których nazwy uległy zmianie w 2023 r. (*branża chemiczna* -> *branża chemiczna i ochrony środowiska*, *branża poligraficzna* -> *branża poligraficzno-księgarska*), w ich nowym brzmieniu. Pozwala to zachować dotychczasową strukturę klucza podstawowego tabeli `w20` w bazie danych.
 
-## Dostosowania do danych opisujących kontynuację nauki na studiach magisterskich
-
--   Zaktualizowano definicję typu danych `rodzaj_dyplomu` w kodzie SQL tworzącym bazę, tak aby akceptował on oficerów dyplomowanych - jeden taki pojawił się w danych obejmujących 5 lat od ukończenia szkoły.
--   Zaktualizowano CHECK na kolumnie `dyplom_szczegoly` tabeli pośredniej `p1` w kodzie SQL tworzącym bazę, tak aby obejmował dyplom oficera.
--   Rozszerzono kombinację kolumn tabeli pośredniej `p1` objętą założeniem unikalności w kodzie SQL tworzącym bazę, tak aby była ona spełniana również wtedy, gdy ta sama osoba ukończyła w tym samym czasie kilka różnych kierunków studiów.
--   Funkcja `przygotuj_tabele_posrednie` usuwa duplikaty danych o dyplomach studiów włączanych do tabeli pośredniej `p1`, które mogą pojawić się w związku z tym, że ta sama osoba studiowała jednocześnie więcej niż jeden kierunek w ramach tej samej dziedziny i z tą samą dyspliną wiodącą (co okazało się zdarzać w przypadku studiów magisterskich).
-
 ## Drobne ulepszenia
 
--   Funkcja `wczytaj_tabele_wejsciowe()` zapisując pliki CSV z zestawieniami problemów używa argumentu `na=''` (tj. zapisuje braki danych jako pustą komórkę), co czyni pliki łatwiejszymi w odbiorze przy ich przeglądaniu w zewnętrznych aplikacjach.
+-   `wczytaj_tabele_wejsciowe()` zapisując pliki CSV z zestawieniami problemów używa argumentu `na=''` (tj. zapisuje braki danych jako pustą komórkę), co czyni pliki łatwiejszymi w odbiorze przy ich przeglądaniu w zewnętrznych aplikacjach.
 
 # MLASdaneAdm 0.4.2 (21.02.2024)
 
 ## Ulepszona diagnostyka
 
--   Funkcja `wczytaj_tabele_wejsciowe()` sprawdza, czy w pliku `W7.csv` znajdują sie dane o maturach z lat wcześniejszych, niż rok ukończenia szkoły przez najmłodszy rocznik absolwentów objętych monitoringiem, a jeśli takich nie znajdzie, generuje ostrzeżenie.
+-   `wczytaj_tabele_wejsciowe()` sprawdza, czy w pliku `W7.csv` znajdują sie dane o maturach z lat wcześniejszych, niż rok ukończenia szkoły przez najmłodszy rocznik absolwentów objętych monitoringiem, a jeśli takich nie znajdzie, generuje ostrzeżenie.
 
 ## Inne zmiany
 
@@ -57,7 +109,7 @@
 
 -   Nowa tabela wejściowa `w24` przechowuje mapowanie kodów zawodów na kategorie klasyfikacji ISCED-F.
     -   Wartości zapisane w tabeli są przyłączane do tabeli pośredniej `p4`, tworząc w niej kolumny: `kod_isced`, `grupa_isced`, `podgrupa_isced` i `nazwa_isced`.
--   Nowa tabela wejściowa `w25` przechowuje mapowania kodów TERYT powiatów na nawzy powiatów, województw i jednostek podziału statystycznego.
+-   Nowa tabela wejściowa `w25` przechowuje mapowania kodów TERYT powiatów na nazwy powiatów, województw i jednostek podziału statystycznego.
     -   Wartości zapisane w tabeli są przyłączane do tabeli pośredniej `p4`, tworząc w niej kolumny: `nazwa_pow_szk`, `nazwa_woj_szk`, `nazwa_makroreg_szk`, `nazwa_reg_szk`, `nazwa_podreg_szk` i `nts_podreg_szk`.
 -   Nowe kolumny w tabeli `w16` i odpowiadające im kolumny w tabeli pośredniej `p3`: `emeryt_rencista` i `niepelnosprawny`, których wartości przypisywane są na podstawie dwóch ostatnich cyfr kodu składki ZUS. W konsekwencji zmianie uległa definicja rekordu w tabeli `w16` - jest on teraz określany również przez kombinację wartości tych dwóch zmiennych (wcześniej dane z rekordów o tym samym "przyciętym o dwie ostatnie cyfry" kodzie składki były agregowane przed zapisaniem do `w16`, a informacje dot. emerytury/renty i niepełnosprawności były pomijane).
 -   Nowe kolumny w tabeli `w22` i odpowiadające im kolumny w tabeli pośredniej `p3`: `pomoc_spol`, `macierz` i `wychow`.
@@ -68,17 +120,17 @@
 -   `wczytaj_tabele_wejsciowe()`:
     -   Wykrywa rekordy występujące w `W1.csv`, ale nie w `W2.csv`.
     -   Sprawdza, czy wszystkie TERYTy powiatów utworzone na podstawie TERYTów szkół z `W1.csv` występują w `W25.csv`.
-    -   Sprawdza, czy wysępują absolwenci więcej niż jednego zawodu w ramach tej samej szkoły, nie będącej szkołą policealną (i domyślnie ich usuwa, choć można to zachowanie zmienić nowym argumentem `usunAbsWKilkuZaw`).
+    -   Sprawdza, czy występują absolwenci więcej niż jednego zawodu w ramach tej samej szkoły, nie będącej szkołą policealną (i domyślnie ich usuwa, choć można to zachowanie zmienić nowym argumentem `usunAbsWKilkuZaw`).
     -   Sprawdza, czy w `W20.csv` (w połączeniu z `W20aneks.csv`) występują zawody przypisane do więcej niż jednej branży.
 -   `przygotuj_tabele_posrednie()`:
     -   Sprawdza, czy podany `rokMonitoringu` wydaje się wiarygodny w kontekście przetwarzanych danych i ostrzega, jeśli stwierdzi, że nie jest.
 
 ## Naprawione błędy
 
--   Przy wczytywaniu tabel wejściowych rekordy z ewidetnie zduplikowanym `id_abs` są usuwane (wcześniej były oznaczane przypisaniem unikalnych, ujemnych wartości `id_abs`, które nie łączyły się z danymi w innych tabelach, ale nie były usuwane i przechodziły do tabel pośrednich w formie absolwentów, o których nic nie było wiadomo).
+-   Przy wczytywaniu tabel wejściowych rekordy z ewidentnie zduplikowanym `id_abs` są usuwane (wcześniej były oznaczane przypisaniem unikalnych, ujemnych wartości `id_abs`, które nie łączyły się z danymi w innych tabelach, ale nie były usuwane i przechodziły do tabel pośrednich w formie absolwentów, o których nic nie było wiadomo).
 -   Przy tworzeniu tabeli pośredniej `p1`, zgodnie z pierwotną intencją, nie pojawiają się duplikaty dyplomów, jeśli dana kwalifikacja jest przypisana do kilku zawodów lub branż (wcześniej przypisanie do zawodu lub branży było dla wszystkich takich rekordów albo ustawiane na zgodne z zawodem/branżą zawodu, w którym uczył się absolwent, jeśli takowy wśród nich występował, lub na brak danych w przeciwnym przypadku, ale pozostawiano wszystkie kopie, które po takiej zmianie były ze sobą tożsame).
 -   Przy tworzeniu tabeli pośredniej `p3` uczniowie policealnych szkół muzycznych są klasyfikowani jako uczący się w szkołach policealnych (wcześniej warunek pomijał ten typ szkoły).
--   Przy tworzenniu tabeli pośredniej `p3` prawidłowo obsługiwana jest sytuacja, kiedy dana osoba uczyła się w szkole (kontynuując kształcenie) tak krótko, że po skorygowaniu dat rozpoczęcia i zakończenia nauki o `minDniEdukacjiWMiesiacu` data ukończenia szkoły była wcześniejsza, niż data jej rozpoczęcia (wcześniej w takiej sytuacji generowany był nieprawidłowy rekord wskazujące na naukę).
+-   Przy tworzeniu tabeli pośredniej `p3` prawidłowo obsługiwana jest sytuacja, kiedy dana osoba uczyła się w szkole (kontynuując kształcenie) tak krótko, że po skorygowaniu dat rozpoczęcia i zakończenia nauki o `minDniEdukacjiWMiesiacu` data ukończenia szkoły była wcześniejsza, niż data jej rozpoczęcia (wcześniej w takiej sytuacji generowany był nieprawidłowy rekord wskazujące na naukę).
 -   Przy tworzeniu wskaźnika `nauka_szk_abs` w tabeli pośredniej `p3` funkcja `przygotuj_tabele_posrednie()` potrafi obsłużyć sytuację, gdy w danych nie występuje okres odpowiadający październikowi roku zostania absolwentem.
     -   Co nie zmienia faktu, że sytuacja taka wskazuje albo na krytyczne braki w przetwarzanych danych, albo na podanie złej wartości argumentu `rokMonitoringu` w wywołaniu `przygotuj_tabele_posrednie()`, w związku z czym użytkownik otrzyma teraz odpowiednie ostrzeżenie.
 
@@ -104,7 +156,7 @@
 
 # MLASdaneAdm 0.3.0 (29.08.2022)
 
-## Nowe funkcjonalnośi:
+## Nowe funkcjonalności:
 
 -   Tworzenie i zapis nowej *tabeli pośredniej* `p5` zawierającej dane o absolwento-miesiąco-pracodawcach, która umożliwia tworzenie wskaźników stałości zatrudnienia.
 
@@ -116,7 +168,7 @@
     -   Sprawdza, czy w danych o dyplomach czeladnika (`w6`) występują powtórzenia.
     -   Sprawdza, czy w danych o dyplomach nie ma braków danych w kodach zawodów.
 
-## Naprawione błedy
+## Naprawione błędy
 
 -   `wczytaj_tabele_wejsciowe()`:
     -   Zwracając kody tytułów ubezpieczenia i przerw w opłacaniu składek, które nie mają mapowania na kategorie analityczne (odpowiednio w tabelach `w22` i `w23`) wypisuje tylko unikalne kody (zamiast wszystkich wystąpień);
@@ -126,7 +178,7 @@
 
 # MLASdaneAdm 0.2.1 (17.11.2021)
 
-## Naprawione błedy
+## Naprawione błędy
 
 -   Domyślna wartość argumentu `okresyP2` funkcji `przygotuj_tabele_posrednie()` została zmieniona na opisującą grudnie od roku ukończenia szkoły do roku prowadzenia monitoringu (wcześniej okres ten był błędnie przesunięty o 1 rok wstecz).
 
@@ -142,7 +194,7 @@
 
 -   Przy wczytywaniu danych o składkach z pliku *W16.csv* `wczytaj_tabele_wejsciowe()` agreguje (w praktyce niezbyt liczne) duplikaty (id_abs, rok_abs, rok_skladka, mies_skladka, id_platnika, kod_zus) sumując podstawy składek i wybierając maksimum spośród CZY_RSA, zamiast wybierać jeden rekord z najwyższą podstawą składki (na ubezpieczenie chorobowe). Takie duplikaty opisują osoby, które miały u jednego pracodawcy w tym samym miesiącu kilka różnych umów (w praktyce to bywają umowy bardzo różnych typów).
 
-## Organizaca pakietu
+## Organizacja pakietu
 
 -   Zapis *tabel pośrednich* do relacyjnej bazy danych został wydzielony z `przygotuj_tabele_posrednie()` odrębnej funkcji `wczytaj_tabele_posrednie()`.
 

@@ -8,15 +8,18 @@ wczytaj_tabele_posrednie(tabelePosrednie, baza)
 }
 \arguments{
 \item{tabelePosrednie}{lista ramek danych zwrócona przez funkcję
-\code{\link{przygotuj_tabele_posrednie}} (może zawierać wszystkie 4 tabele
-\emph{p1}, \emph{p2}, \emph{p3} i \emph{p4}, lub tylko niektóre z nich)}
+\code{\link[=przygotuj_tabele_posrednie]{przygotuj_tabele_posrednie()}} (może zawierać wszystkie 6 tabel
+\emph{p1}, \emph{p2}, \emph{p3}, \emph{p4}, \emph{p5} i \emph{p6}, lub tylko niektóre z nich)}
 
 \item{baza}{uchwyt połączenia do bazy lub lista argumentów do funkcji
-\code{\link[DBI]{dbConnect}} umożliwiających nawiązanie połączenia z bazą
-danych, w której mają zostać zapisane wczytwane dane}
+\code{\link[DBI:dbConnect]{DBI::dbConnect()}} umożliwiających nawiązanie połączenia z bazą
+danych, w której mają zostać zapisane wczytywane dane}
+}
+\value{
+\code{NULL}
 }
 \description{
 Funkcja wczytuje do relacyjnej bazy danych zawartość tabel
 \emph{pośrednich}, które zostały wcześniej przygotowane jako efekt działania
-funkcji \code{\link{przygotuj_tabele_posrednie}}.
+funkcji \code{\link[=przygotuj_tabele_posrednie]{przygotuj_tabele_posrednie()}}.
 }

@@ -8,8 +8,9 @@ przygotuj_tabele_posrednie(
   baza,
   rokMonitoringu,
   okresOd = 0L,
-  okresDo = 12L * rokMonitoringu + 5L,
-  okresyP2 = 12L * ((rokMonitoringu - 4L):rokMonitoringu),
+  okresDo = rokmiesiac2okres(rokMonitoringu, 3L),
+  okresyP2 = seq(rokmiesiac2okres(rokMonitoringu - 5L, 12L),
+    rokmiesiac2okres(rokMonitoringu - 1L, 12L), by = 6L),
   imputujDateKoncaSzkoly = as.Date(paste0(rokMonitoringu, "-08-31")),
   imputujDateKoncaStudiow = as.Date(paste0(rokMonitoringu, "-09-30")),
   imputujDateKoncaAdresu = as.Date(paste0(rokMonitoringu, "-05-31")),
@@ -18,13 +19,14 @@ przygotuj_tabele_posrednie(
   przygotujP2 = TRUE,
   przygotujP3 = TRUE,
   przygotujP4 = przygotujP3,
-  przygotujP5 = TRUE
+  przygotujP5 = TRUE,
+  przygotujP6 = TRUE
 )
 }
 \arguments{
 \item{baza}{uchwyt połączenia do bazy lub lista argumentów do funkcji
-\code{\link[DBI]{dbConnect}} umożliwiających nawiązanie połączenia z bazą
-danych, w której mają zostać zapisane wczytwane dane}
+\code{\link[DBI:dbConnect]{DBI::dbConnect()}} umożliwiających nawiązanie połączenia z bazą
+danych, w której mają zostać zapisane wczytywane dane}
 
 \item{rokMonitoringu}{rok, w którym prowadzony jest monitoring (ma znaczenie
 dla ustalenia adekwatnych przedziałów czasu, dla których mają zostać
@@ -38,14 +40,15 @@ absolwentem); domyślnie 0 (tzn. pierwszym miesiącem uwzględnionym w P3 jest
 styczeń roku ukończenia szkoły)}
 
 \item{okresDo}{opcjonalnie liczba całkowita - identyfikator miesiąca w formie
-\code{12*rok+numer_miesiaca_w_ramach_roku}, który ma być ostatnim miesiącym
-objętym wskaźnikami w tabeli P3; domyślnie maj roku prowadzenia monitoringu}
+\code{12*rok+numer_miesiaca_w_ramach_roku} (p. \code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}}), który ma
+być ostatnim miesiącem objętym wskaźnikami w tabeli P3; domyślnie marzec roku
+prowadzenia monitoringu}
 
 \item{okresyP2}{opcjonalnie wektor liczb całkowitych - identyfikatory
-miesięcy w formie \code{12*rok+numer_miesiaca_w_ramach_roku}, dla których
-mają zostać obliczone wskaźniki zwracane w tabeli P2 (tj. wskaźniki dotyczące
-branży/dziedziny/dysycypliny, w której absolwent kontynuuje naukę); domyślnie
-grudzień każdego roku objętego monitoringiem}
+miesięcy w formie \code{12*rok+numer_miesiaca_w_ramach_roku}
+(p. \code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}}), dla których mają zostać obliczone wskaźniki
+zwracane w tabeli P2 (tj. wskaźniki dotyczące form kontynuacji nauki);
+domyślnie grudzień każdego roku objętego monitoringiem}
 
 \item{imputujDateKoncaSzkoly}{opcjonalnie data, która ma zostać użyta jako
 data zakończenia nauki w szkołach, w których absolwenci kontynuują edukację,
@@ -71,15 +74,15 @@ kontynuacji edukacji w danym miesiącu w tabeli P3 wskazywały na kontynuację
 nauki (a nie na jej brak); domyślnie 14}
 
 \item{przygotujP1}{opcjonalnie wartość logiczna - czy przygotować
-\emph{tabelę pośrednią} P1? (umożliwia wyłączenie przygotowania wybranej
+tabelę \emph{pośrednią} P1? (umożliwia wyłączenie przygotowania wybranej
 tabeli w ramach danego wywołania funkcji)}
 
 \item{przygotujP2}{opcjonalnie wartość logiczna - czy przygotować
-\emph{tabelę pośrednią} P2? (umożliwia wyłączenie przygotowania wybranej
+tabelę \emph{pośrednią} P2? (umożliwia wyłączenie przygotowania wybranej
 tabeli w ramach danego wywołania funkcji)}
 
 \item{przygotujP3}{opcjonalnie wartość logiczna - czy przygotować
-\emph{tabelę pośrednią} P3? (umożliwia wyłączenie przygotowania wybranej
+tabelę \emph{pośrednią} P3? (umożliwia wyłączenie przygotowania wybranej
 tabeli w ramach danego wywołania funkcji)}
 
 \item{przygotujP4}{opcjonalnie wartość logiczna - czy przygotować
@@ -88,19 +91,23 @@ tabeli w ramach danego wywołania funkcji); aby tabela P4 mogła zostać
 przygotowana, konieczne jest również przygotowanie tabeli P3}
 
 \item{przygotujP5}{opcjonalnie wartość logiczna - czy przygotować
-\emph{tabelę pośrednią} P5? (umożliwia wyłączenie przygotowania wybranej
+tabelę \emph{pośrednią} P5? (umożliwia wyłączenie przygotowania wybranej
 tabeli w ramach danego wywołania funkcji); aby tabela P5 mogła zostać
 przygotowana, konieczne jest również przygotowanie tabeli P3}
+
+\item{przygotujP6}{opcjonalnie wartość logiczna - czy przygotować
+tabelę \emph{pośrednią} P6? (umożliwia wyłączenie przygotowania wybranej
+tabeli w ramach danego wywołania funkcji);}
 }
 \value{
 lista ramek danych z przygotowanymi tabelami
 }
 \description{
 Na podstawie zawartych w bazie danych z tabel wejściowych
-funkcja przygotowuje 4 \emph{tablice pośrednie}, które zawierają zestawienia
-wskaźników bezpośrednio użytecznych analitycznie. Aby zapisać tak
+funkcja przygotowuje 6 tabel \emph{pośrednich}, które zawierają zestawienia
+wskaźników (bardziej) bezpośrednio użytecznych analitycznie. Aby zapisać tak
 przygotowane tabele do relacyjnej bazy danych, należy następnie użyć funkcji
-\code{\link{wczytaj_tabele_posrednie}}.
+\code{\link[=wczytaj_tabele_posrednie]{wczytaj_tabele_posrednie()}}.
 }
 \details{
 Dane zawarte w bazie powinny obejmować \strong{tylko jeden rok
@@ -113,11 +120,11 @@ a jedynie do \emph{kontynuacji} nauki (w praktyce: nauki w innej szkole niż
 ta, jako absolwent której dana osoba została objęta monitoringiem).
 
 W przypadku KKZ i KUZ przy kodowaniu wskaźników opisujących status
-konytynuacji nauki w tabeli P3 lub branżę kontynuacji nauki w tabeli P2
+kontynuacji nauki w tabeli P3 lub branżę kontynuacji nauki w tabeli P2
 zostały wzięte pod uwagę tylko kursy, które mają podaną datę zakończenia
 (co do tych, które nie mają jej podanej, nie da się rzetelnie rozstrzygać,
 czy zostały one ukończone, czy zarzucone).
 }
 \seealso{
-\code{\link{wczytaj_tabele_posrednie}}
+\code{\link[=wczytaj_tabele_posrednie]{wczytaj_tabele_posrednie()}}
 }

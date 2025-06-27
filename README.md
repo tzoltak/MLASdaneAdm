@@ -27,14 +27,17 @@ Dokładnie w ten sam sposób można przeprowadzić aktualizację pakietu do najn
 
 Pakiet udostępnia obecnie trzy podstawowe funkcje:
 
-1.  `wczytaj_tabele_wejsciowe()` odpowiada za zdiagnozowanie spójności zbiorów danych CSV zawierających poszczególne zestawienia wyeksportowane z systemów informatycznych zawierających informacje wykorzystywane w monitoringu (przez gestorów tych systemów) oraz wczytanie ich, po niewielkiej obróbce, do relacyjnej bazy danych,
-2.  `przygotuj_tabele_posrednie()` odpowiada za przygotowanie na podstawie danych wczytanych do relacyjnej bazy danych w poprzednim kroku 4 *tabel pośrednich*, które zawierają zestawienia wskaźników opisujących sytuację absolwentów, które są już bezpośrednio użyteczne analitycznie:
+1.  `przygotuj_dane_do_w19()` pozwala przygotować dane ze wskaźnikami bezrobocia i przecietnych miesięcznych wynagrodzeń w formie, w jakiej są zwracane przez `MLASZdane::pobierz_dane_bdl` do formatu wymaganego dla tabeli *wejściowej* W19 (przykład użycia dostępny w dokumentacji funkcji: `?przygotuj_dane_do_w19`).
+2.  `wczytaj_tabele_wejsciowe()` odpowiada za zdiagnozowanie spójności zbiorów danych CSV zawierających poszczególne zestawienia wyeksportowane z systemów informatycznych zawierających informacje wykorzystywane w monitoringu (przez gestorów tych systemów) oraz wczytanie ich, po niewielkiej obróbce, do relacyjnej bazy danych,
+3.  `przygotuj_tabele_posrednie()` odpowiada za przygotowanie na podstawie danych wczytanych do relacyjnej bazy danych w poprzednim kroku 4 *tabel pośrednich*, które zawierają zestawienia wskaźników opisujących sytuację absolwentów, które są już bezpośrednio użyteczne analitycznie:
     1) *p1* - zestawienie uzyskanych przez absolwentów certyfikatów i dyplomów (rekord stanowi absolwento-certyfikat/dyplom),
-    2) *p2* - zestawienie zawodu i branży, w której absolwent kształcił się w ukończonej szkole z branżami lub dziedzinami i dyscyplinami, w których kontynuuje on potem edukację (o ile ją kontynuuje) w wybranych punktach czasu (miesiącach),
+    2) *p2* - zestawienie kontynuacji kształcenia przez absolwentów w wybranych punktach czasu (miesiącach),
     3) *p3* - miesięczne dane o statusach edukacyjnych i zawodowych oraz dane o wynagrodzeniach,
     4) *p4* - zestawienie stałych w czasie cech absolwenta i wskaźników obliczonych na podstawie całego okresu od ukończenia przez niego szkoły,
-    5) *p5* - zestawienie charakterytyk opisujących miesiąco-miejsca zatrudnienia, na podstawie którego można obliczać wskaźniki stałości zatrudnienia (od edycji monitoringu 2022),
-3.  `wczytaj_tabele_posrednie()` odpowiada za zapisanie do relacyjnej bazy danych *tabel pośrednich* powstałych w wyniku użycia funkcji `przygotuj_tabele_posrednie()`.
+    5) *p5* - zestawienie charakterystyk opisujących miesiąco-miejsca zatrudnienia, na podstawie którego można obliczać wskaźniki stałości zatrudnienia (od edycji monitoringu 2022),
+    6) *p6* - charakterystyki szkół - w tym szkół, w których absolwenci kontynuowali kształcenie - z RSPO,
+4.  `wczytaj_tabele_posrednie()` odpowiada za zapisanie do relacyjnej bazy danych *tabel pośrednich* powstałych w wyniku użycia funkcji `przygotuj_tabele_posrednie()` (sensem takiego zapisu jest głównie walidacja przygotowanych danych, bo nie przyjęło się w praktyce korzystać z tabel *pośrednich* zapisanych do bazy),
+5.  `usun_duplikaty()` pozwala usunąć z danych absolwentów, którzy występują wielokrotnie w ramach tej samej szkoły (historyczny problem ze sposobem ewidencjonowania w SIO uczniów oddziałów wielozawodowych; rzadziej ukończenie kilku różnych zawodów w tej samej spolic.) lub zostali absolwentami kilku różnych szkół w tym samym roku.
 
 `wczytaj_tabele_wejsciowe()` wymaga wskazania lokalizacji folderu z plikami CSV zawierającymi dane, które mają zostać wczytane do bazy oraz danych niezbędnych do połączenia się z bazą (p. następna sekcja). Funkcja nic nie zwraca, niemniej domyślnie generuje w katalogu roboczym pliki CSV zawierające zestawienia problematycznych danych (uwaga, ich występowanie **nie** uniemożliwia wczytania danych do bazy i ich dalszego przetwarzania! niemniej w ostatecznym rozrachunku rzutuje na trafność i rzetelność wskaźników).
 
@@ -90,6 +93,15 @@ CREATE TYPE plec AS ENUM ('K', 'M');
 CREATE TYPE profil_stu AS ENUM ('P', 'O', 'N');
 CREATE TYPE adres_typ AS ENUM ('meld', 'zam', 'koresp');
 CREATE TYPE rodzaj_dyplomu AS ENUM ('tytuł czeladnika', 'matura', 'certyfikat kwalifikacji', 'dyplom zawodowy', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera');
+CREATE TYPE kat_uczn AS ENUM ('Dzieci lub młodzież', 'Dorośli', 'Bez kategorii');
+CREATE TYPE specyfika AS ENUM ('brak specyfiki', 'specjalna');
+CREATE TYPE sposob_ewidencjonowania AS ENUM ('Prowadzona', 'Rejestrowana');
+CREATE TYPE miejsce_w_strukt AS ENUM ('samodzielna', 'filia szkoły lub placówki', 'szkoła/placówka wchodząca w skład jednostki złożonej', 'jednostka złożona');
+CREATE TYPE rok_szk AS ENUM ('2010/2011', '2011/2012', '2012/2013', '2013/2014', '2014/2015', '2015/2016', '2016/2017', '2017/2018', '2018/2019', '2019/2020', '2020/2021', '2021/2022', '2022/2023', '2023/2024');
+CREATE TYPE forma_kontynuacji AS ENUM ('uczeń', 'KKZ', 'KUZ', 'student');
+CREATE TYPE status AS ENUM ('Tylko nauka', 'Nauka i praca', 'Tylko praca', 'Bezrobocie', 'Brak danych o aktywności');
+CREATE TYPE typ_szk AS ENUM ('Branżowa szkoła I stopnia', 'Branżowa szkoła II stopnia', 'Technikum', 'Liceum ogólnokształcące', 'Liceum dla dorosłych', 'Szkoła policealna', 'Szkoła specjalna przysposabiająca do pracy');
+CREATE TYPE typ_szk_mlodoc AS ENUM ('Młodociani w Branżowej szkole I stopnia', 'Niemłodociani w Branżowej szkole I stopnia', 'Branżowa szkoła II stopnia', 'Technikum', 'Liceum ogólnokształcące', 'Liceum dla dorosłych', 'Szkoła policealna', 'Szkoła specjalna przysposabiająca do pracy');
 
 CREATE TABLE w1 (
 	id_abs int,
@@ -98,6 +110,56 @@ CREATE TABLE w1 (
 );
 CREATE TABLE typy_szkol (
 	typ_szk text PRIMARY KEY
+);
+/* unikalne id szkół */
+CREATE TABLE w26a (
+	id_szk int PRIMARY KEY CHECK (id_szk > 0)
+);
+/* dane szkół, co do których zakładam, że są stałe w czasie */
+CREATE TABLE w26b (
+	id_szk int REFERENCES w26a (id_szk),
+	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk),
+	publicznosc text NOT NULL,
+	kategoria_uczniow kat_uczn NOT NULL,
+	specyfika specyfika NOT NULL,
+	organ_prowadzacy_id int NOT NULL,
+	organ_prowadzacy_sposob sposob_ewidencjonowania NOT NULL,
+	organ_prowadzacy_typ text NOT NULL CHECK (organ_prowadzacy_typ != ''),
+	PRIMARY KEY (id_szk, typ_szk, publicznosc, kategoria_uczniow, specyfika, organ_prowadzacy_id, organ_prowadzacy_sposob, organ_prowadzacy_typ)
+);
+/* dane wszystkich szkół występujących w danych z RSPO */
+CREATE TABLE w26 (
+	id_szk int NOT NULL REFERENCES w26a (id_szk),
+	rok_szk rok_szk,
+	nazwa_szk text NOT NULL CHECK (nazwa_szk != ''),
+	teryt_gmi_szk int NOT NULL,
+	wojewodztwo_szk text NOT NULL CHECK (wojewodztwo_szk != ''),
+	powiat_szk text NOT NULL CHECK (powiat_szk != ''),
+	gmina_szk text NOT NULL CHECK (gmina_szk != ''),
+	simc_miejsc int NOT NULL,
+	miejscowosc text NOT NULL CHECK (miejscowosc != ''),
+	rodzaj_miejsc text NOT NULL CHECK (rodzaj_miejsc != ''),
+	sym_ul int,
+	ulica text,
+	nr_budynku text,
+	nr_lokalu text,
+	pna text NOT NULL CHECK (pna != ''),
+	poczta text NOT NULL CHECK (poczta != ''),
+	organ_prowadzacy_nazwa text NOT NULL CHECK (organ_prowadzacy_nazwa != ''),
+	organ_prowadzacy_regon text,
+	organ_prowadzacy_teryt int NOT NULL,
+	organ_prowadzacy_woj text NOT NULL CHECK (organ_prowadzacy_woj != ''),
+	organ_prowadzacy_pow text NOT NULL CHECK (organ_prowadzacy_pow != ''),
+	organ_prowadzacy_gmi text NOT NULL CHECK (organ_prowadzacy_gmi != ''),
+	miejsce_w_strukt miejsce_w_strukt NOT NULL,
+	jedn_nadrz_id int,
+	jedn_nadrz_typ text,
+	PRIMARY KEY (id_szk, rok_szk),
+	UNIQUE (id_szk, rok_szk, nazwa_szk, teryt_gmi_szk, wojewodztwo_szk, powiat_szk, gmina_szk,
+            simc_miejsc, miejscowosc, rodzaj_miejsc, sym_ul, ulica, nr_budynku, nr_lokalu, pna, poczta,
+            organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
+            organ_prowadzacy_woj, organ_prowadzacy_pow, organ_prowadzacy_gmi, miejsce_w_strukt,
+            jedn_nadrz_id, jedn_nadrz_typ)
 );
 /* unikalne kody zawodow (w tym zawody nie przypisane do żadnej branży) */
 CREATE TABLE w20a (
@@ -128,7 +190,7 @@ CREATE TABLE w2 (
 	rok_abs int,
 	rok_ur int,
 	plec plec,
-	id_szk int CHECK (id_szk > 0),
+	id_szk int NOT NULL REFERENCES w26a (id_szk),
 	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk),
 	teryt_szk int CHECK (teryt_szk >= 201011 AND teryt_szk <= 3299999),
 	teryt_pow_szk int NOT NULL REFERENCES w25 (teryt_pow),
@@ -141,7 +203,7 @@ CREATE TABLE w2 (
 CREATE TABLE w3 (
 	id_abs int,
 	rok_abs int,
-	id_szk_kont int NOT NULL CHECK (id_szk_kont > 0),
+	id_szk_kont int NOT NULL REFERENCES w26a (id_szk),
 	typ_szk_kont text NOT NULL REFERENCES typy_szkol (typ_szk),
 	data_od_szk_kont date NOT NULL,
 	lp int,
@@ -163,7 +225,7 @@ CREATE TABLE w21 (
 CREATE TABLE w4 (
 	id_abs int,
 	rok_abs int,
-	id_szk_kont int NOT NULL CHECK (id_szk_kont > 0),
+	id_szk_kont int NOT NULL REFERENCES w26a (id_szk),
 	lp int,
 	data_od_kkz date NOT NULL,
 	data_do_kkz date,
@@ -174,7 +236,7 @@ CREATE TABLE w4 (
 CREATE TABLE w5 (
 	id_abs int,
 	rok_abs int,
-	id_szk_kont int NOT NULL CHECK (id_szk_kont > 0),
+	id_szk_kont int NOT NULL REFERENCES w26a (id_szk),
 	lp int,
 	data_od_kuz date NOT NULL,
 	data_do_kuz date,
@@ -279,41 +341,40 @@ CREATE TABLE w18 (
 CREATE TABLE w22 (
 	kod_zus int PRIMARY KEY,
 	opis text NOT NULL CHECK (opis != ''),
-	etat_ela boolean NOT NULL,
 	etat_ibe boolean NOT NULL,
-	skladka_szac_wynag boolean NOT NULL,
 	netat_ibe boolean NOT NULL,
+	samoz_ela boolean NOT NULL,
+	bezrob_ibe boolean NOT NULL,
+	dziecko boolean NOT NULL,
+	inne_ibe boolean NOT NULL,
+	macierz boolean NOT NULL,
+	wychow boolean NOT NULL,
+	mlodoc boolean NOT NULL,
+	pomoc_spol boolean NOT NULL,
+	bezrobotnystaz boolean NOT NULL,
 	bierny_skladka boolean NOT NULL,
+	wychowawczy_opieka boolean NOT NULL,
+	skladka_szac_wynag boolean NOT NULL,
+	etat_ela boolean NOT NULL,
 	netat_ela boolean NOT NULL,
 	zlec_ela boolean NOT NULL,
 	bezrob_ela boolean NOT NULL,
 	student_ela boolean NOT NULL,
-	zagranic_ela boolean NOT NULL,
-	prawnik_ela boolean NOT NULL,
-	samoz_ela boolean NOT NULL,
-	nspraw_ela boolean NOT NULL,
-	rolnik_ela boolean NOT NULL,
-	rentemer_ela boolean NOT NULL,
-	mundur_ela boolean NOT NULL,
-	dziecko boolean NOT NULL,
-	etatnokid boolean NOT NULL,
-	netatnokid_ela boolean NOT NULL,
-	samoznokid_ela boolean NOT NULL,
 	inne_ela boolean NOT NULL,
-	inne_ibe boolean NOT NULL,
+	mundur_ela boolean NOT NULL,
+	prawnik_ela boolean NOT NULL,
+	rolnik_ela boolean NOT NULL,
+	zagranic_ela boolean NOT NULL,
+	nspraw_ela boolean NOT NULL,
+	rentemer_ela boolean NOT NULL,
 	macierzynski_ela boolean NOT NULL,
 	dziecko_pracownik_ela boolean NOT NULL,
 	dziecko_samozatrudnienie_ela boolean NOT NULL,
 	dziecko_zlecenie_ela boolean NOT NULL,
 	dziecko_bezpracy_ela boolean NOT NULL,
-	wychowawczy_opieka boolean NOT NULL,
-	mlodoc boolean NOT NULL,
-	benepomspol boolean NOT NULL,
-	bezrobotnystaz boolean NOT NULL,
-	bezrob_ibe boolean NOT NULL,
-	pomoc_spol boolean NOT NULL,
-	macierz boolean NOT NULL,
-	wychow boolean NOT NULL
+	etatnokid boolean NOT NULL,
+	netatnokid_ela boolean NOT NULL,
+	samoznokid_ela boolean NOT NULL
 );
 CREATE TABLE w16 (
 	id_abs int,
@@ -366,68 +427,87 @@ CREATE TABLE p1 (
 	rok_abs int,
 	rodzaj_dyplomu rodzaj_dyplomu,
 	dyplom_szczegoly text CHECK (CASE WHEN rodzaj_dyplomu IN ('certyfikat kwalifikacji', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera') THEN dyplom_szczegoly IS NOT NULL ELSE dyplom_szczegoly IS NULL END),
-	okres_dyplom int,
+	rok int CHECK (CASE WHEN rodzaj_dyplomu != 'tytuł czeladnika' THEN rok IS NOT NULL END),
+	miesiac int CHECK (CASE WHEN rodzaj_dyplomu != 'tytuł czeladnika' THEN miesiac IS NOT NULL END),
+	mies_od_ukoncz int CHECK (CASE WHEN rodzaj_dyplomu != 'tytuł czeladnika' THEN mies_od_ukoncz IS NOT NULL END),
+	okres int CHECK (CASE WHEN rodzaj_dyplomu != 'tytuł czeladnika' THEN okres IS NOT NULL END),
 	lp_dyplom int,
 	kod_zaw int REFERENCES w20a (kod_zaw),
 	branza text,
 	kod_zaw_dyplom int REFERENCES w20a (kod_zaw),
-	branza_dyplom text,
-	dziedzina text,
-	dyscyplina_wiodaca text,
+	branza_dyplom text CHECK (CASE WHEN rodzaj_dyplomu NOT IN ('certyfikat kwalifikacji', 'dyplom zawodowy', 'tytuł czeladnika') THEN branza_dyplom IS NULL END),
+	dziedzina text CHECK (CASE WHEN rodzaj_dyplomu NOT IN ('dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera') THEN dziedzina IS NULL END),
+	dyscyplina_wiodaca text CHECK (CASE WHEN rodzaj_dyplomu NOT IN ('dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera') THEN dyscyplina_wiodaca IS NULL END),
 	PRIMARY KEY (id_abs, rok_abs, rodzaj_dyplomu, lp_dyplom),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE,
-	UNIQUE (id_abs, rok_abs, kod_zaw, rodzaj_dyplomu, dyplom_szczegoly, dziedzina, dyscyplina_wiodaca, okres_dyplom)
+	UNIQUE (id_abs, rok_abs, kod_zaw, rodzaj_dyplomu, dyplom_szczegoly, dziedzina, dyscyplina_wiodaca, okres)
 );
 CREATE TABLE p2 (
 	id_abs int,
 	rok_abs int,
-	okres_kont int,
+	rok int NOT NULL,
+	miesiac int NOT NULL,
+	mies_od_ukoncz int NOT NULL,
+	okres int,
 	lp_kont int,
 	kod_zaw int REFERENCES w20a (kod_zaw),
 	branza text,
-	branza_kont text,
-	dziedzina_kont text,
-	dyscyplina_wiodaca_kont text,
-	branza_kont_zrodlo text,
-	PRIMARY KEY (id_abs, rok_abs, okres_kont, lp_kont),
+	id_szk_kont int REFERENCES w26a (id_szk),
+	typ_szk_kont text NOT NULL,
+	forma_kont forma_kontynuacji NOT NULL,
+	teryt_pow_kont int REFERENCES w25 (teryt_pow),
+	kod_zaw_kont int REFERENCES w20a (kod_zaw) CHECK (CASE WHEN forma_kont = 'student' THEN kod_zaw_kont IS NULL END),
+	branza_kont text CHECK (CASE WHEN forma_kont = 'student' THEN branza_kont IS NULL END),
+	dziedzina_kont text CHECK (CASE WHEN forma_kont != 'student' THEN dziedzina_kont IS NULL END),
+	dyscyplina_wiodaca_kont text CHECK (CASE WHEN forma_kont != 'student' THEN dyscyplina_wiodaca_kont IS NULL END),
+	zrodlo text NOT NULL,
+	PRIMARY KEY (id_abs, rok_abs, okres, lp_kont),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE TABLE p3 (
 	id_abs int,
 	rok_abs int,
+	rok int NOT NULL,
+	miesiac int NOT NULL,
+	mies_od_ukoncz int NOT NULL,
 	okres int,
-	zmarl int NOT NULL CHECK (zmarl in (0, 1)),
-	status_nieustalony int NOT NULL CHECK (status_nieustalony in (0, 1)),
-	praca int CHECK (praca in (0, 1, 2, 3, 4, 5, 6, 7)),
-	mlodociany int CHECK (mlodociany in (0, 1)),
-	bezrobocie int CHECK (bezrobocie in (0, 1)),
-	bezrobocie_staz int CHECK (bezrobocie_staz in (0, 1)),
-	dziecko int CHECK (dziecko in (0, 1)),
-	macierz int CHECK (macierz in (0, 1)),
-	wychow int CHECK (wychow in (0, 1)),
-	pomoc_spol int CHECK (pomoc_spol in (0, 1)),
-	emeryt_rencista int CHECK (emeryt_rencista in (0, 1, 2)),
-	niepelnosprawny int CHECK (niepelnosprawny in (0, 1, 2, 3, 4, 9)),
-	biernosc int CHECK (biernosc in (0, 1)),
-	dziecko2 int CHECK (dziecko2 in (0, 1)),
-	wypadek int CHECK (wypadek in (0, 1)),
-	choroba int CHECK (choroba in (0, 1)),
-	choroba_macierz int CHECK (choroba_macierz in (0, 1)),
-	kont_mlodoc_prac int CHECK (kont_mlodoc_prac in (1, 2, 3, 4, 5)),
-	wynagrodzenie real,
-	wynagrodzenie_uop real,
-	teryt_zam int,
+	status status NOT NULL,
+	zmarl boolean NOT NULL,
+	brak_danych_z_zus boolean NOT NULL,
+	praca int CHECK (praca in (0, 1, 2, 3, 4, 5, 6, 7)) CHECK (CASE WHEN brak_danych_z_zus THEN praca IS NULL ELSE praca IS NOT NULL END),
+	mlodociany int CHECK (mlodociany in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN mlodociany IS NULL ELSE mlodociany IS NOT NULL END),
+	kont_mlodoc_prac int CHECK (kont_mlodoc_prac in (1, 2, 3, 4, 5, 6)) CHECK (CASE WHEN brak_danych_z_zus THEN kont_mlodoc_prac IS NULL END),
+	bezrobocie int CHECK (bezrobocie in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN bezrobocie IS NULL ELSE bezrobocie IS NOT NULL END),
+	bezrobocie_staz int CHECK (bezrobocie_staz in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN bezrobocie_staz IS NULL ELSE bezrobocie_staz IS NOT NULL END),
+	dziecko int CHECK (dziecko in (0, 1, 2)) CHECK (CASE WHEN brak_danych_z_zus THEN dziecko IS NULL ELSE dziecko IS NOT NULL END),
+	macierz int CHECK (macierz in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN macierz IS NULL ELSE macierz IS NOT NULL END),
+	wychow int CHECK (wychow in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN wychow IS NULL ELSE wychow IS NOT NULL END),
+	pomoc_spol int CHECK (pomoc_spol in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN pomoc_spol IS NULL ELSE pomoc_spol IS NOT NULL END),
+	emeryt_rencista int CHECK (emeryt_rencista in (0, 1, 2)) CHECK (CASE WHEN brak_danych_z_zus THEN emeryt_rencista IS NULL END),
+	niepelnosprawny int CHECK (niepelnosprawny in (0, 1, 2, 3, 4)) CHECK (CASE WHEN brak_danych_z_zus THEN niepelnosprawny IS NULL END),
+	biernosc_zus int CHECK (biernosc_zus in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN biernosc_zus IS NULL ELSE biernosc_zus IS NOT NULL END),
+	wypadek int CHECK (wypadek in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN wypadek IS NULL ELSE wypadek IS NOT NULL END),
+	choroba int CHECK (choroba in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN choroba IS NULL ELSE choroba IS NOT NULL END),
+	choroba_macierz int CHECK (choroba_macierz in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN choroba_macierz IS NULL ELSE choroba_macierz IS NOT NULL END),
+	wynagrodzenie real CHECK (CASE WHEN brak_danych_z_zus THEN wynagrodzenie IS NULL END),
+	wynagrodzenie_uop real CHECK (CASE WHEN praca IN (1, 4, 5, 7) THEN wynagrodzenie_uop IS NOT NULL ELSE wynagrodzenie_uop IS NULL END),
+	teryt_zam int REFERENCES w25 (teryt_pow),
 	powiat_bezrobocie real,
 	powiat_sr_wynagrodzenie real,
-	nauka int CHECK (nauka in (0, 1)),
-	nauka2 int CHECK (nauka2 in (0, 1)),
-	nauka_szk_abs int CHECK (nauka_szk_abs in (0, 1)),
-	nauka_bs2st int CHECK (nauka_bs2st in (0, 1)),
-	nauka_lodd int CHECK (nauka_lodd in (0, 1)),
-	nauka_spolic int CHECK (nauka_spolic in (0, 1)),
-	nauka_studia int CHECK (nauka_studia in (0, 1)),
-	nauka_kkz int CHECK (nauka_kkz in (0, 1)),
-	nauka_kuz int CHECK (nauka_kuz in (0, 1)),
+	nauka int NOT NULL CHECK (nauka in (0, 1)),
+	nauka2 int NOT NULL CHECK (nauka2 in (0, 1)),
+	nauka_szk_abs int NOT NULL CHECK (nauka_szk_abs in (0, 1)),
+	nauka_bs1st int NOT NULL CHECK (nauka_bs1st in (0, 1, 2)),
+	nauka_bs2st int NOT NULL CHECK (nauka_bs2st in (0, 1, 2)),
+	nauka_technikum int NOT NULL CHECK (nauka_technikum in (0, 1, 2)),
+	nauka_lo int NOT NULL CHECK (nauka_lo in (0, 1, 2, 3)),
+	nauka_spolic int NOT NULL CHECK (nauka_spolic in (0, 1, 2, 3, 4)),
+	nauka_artystyczna int NOT NULL CHECK (nauka_artystyczna in (0, 1, 2, 3, 4, 5, 6, 7, 8)),
+	nauka_sspdp int NOT NULL CHECK (nauka_sspdp in (0, 1)),
+	nauka_kpsp int NOT NULL CHECK (nauka_kpsp in (0, 1)),
+	nauka_studia int NOT NULL CHECK (nauka_studia in (0, 1)),
+	nauka_kkz int NOT NULL CHECK (nauka_kkz in (0, 1)),
+	nauka_kuz int NOT NULL CHECK (nauka_kuz in (0, 1)),
 	PRIMARY KEY (id_abs, rok_abs, okres),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -437,7 +517,12 @@ CREATE TABLE p4 (
 	rok_ur int,
 	plec plec,
 	id_szk int,
-	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk),
+	duplikat_w_szkole boolean NOT NULL,
+	duplikat_wiele_szkol boolean NOT NULL,
+	mlodoc_byl boolean NOT NULL,
+	typ_szk typ_szk NOT NULL,
+	szk_specjalna boolean NOT NULL,
+	typ_szk_mlodoc typ_szk_mlodoc NOT NULL,
 	teryt_pow_szk int NOT NULL,
 	nazwa_pow_szk text NOT NULL,
 	teryt_woj_szk int NOT NULL,
@@ -471,6 +556,9 @@ CREATE TABLE p4 (
 CREATE TABLE p5 (
 	id_abs int,
 	rok_abs int,
+	rok int NOT NULL,
+	miesiac int NOT NULL,
+	mies_od_ukoncz int NOT NULL,
 	okres int,
 	lp_pracod int,
 	pkd_pracod text,
@@ -480,5 +568,56 @@ CREATE TABLE p5 (
 	wynagrodzenie_uop real,
 	PRIMARY KEY (id_abs, rok_abs, okres, lp_pracod),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE p6 (
+	id_szk int NOT NULL REFERENCES w26a (id_szk),
+	szk_ma_abs boolean NOT NULL,
+	typ_szk text NOT NULL,
+	typ_szk_sdd text NOT NULL,
+	typ_szk_rspo text NOT NULL REFERENCES typy_szkol (typ_szk),
+	publicznosc text NOT NULL,
+	kategoria_uczniow kat_uczn NOT NULL,
+	specyfika specyfika NOT NULL,
+	organ_prowadzacy_id int NOT NULL,
+	organ_prowadzacy_sposob sposob_ewidencjonowania NOT NULL,
+	organ_prowadzacy_typ text NOT NULL CHECK (organ_prowadzacy_typ != ''),
+	rok_szk rok_szk,
+	nazwa_szk text NOT NULL CHECK (nazwa_szk != ''),
+	teryt_gmi_szk int NOT NULL,
+	wojewodztwo_szk text NOT NULL CHECK (wojewodztwo_szk != ''),
+	powiat_szk text NOT NULL CHECK (powiat_szk != ''),
+	gmina_szk text NOT NULL CHECK (gmina_szk != ''),
+	simc_miejsc int NOT NULL,
+	miejscowosc text NOT NULL CHECK (miejscowosc != ''),
+	rodzaj_miejsc text NOT NULL CHECK (rodzaj_miejsc != ''),
+	sym_ul int,
+	ulica text,
+	nr_budynku text,
+	nr_lokalu text,
+	pna text NOT NULL CHECK (pna != ''),
+	poczta text NOT NULL CHECK (poczta != ''),
+	organ_prowadzacy_nazwa text NOT NULL CHECK (organ_prowadzacy_nazwa != ''),
+	organ_prowadzacy_regon text,
+	organ_prowadzacy_teryt int NOT NULL,
+	organ_prowadzacy_woj text NOT NULL CHECK (organ_prowadzacy_woj != ''),
+	organ_prowadzacy_pow text NOT NULL CHECK (organ_prowadzacy_pow != ''),
+	organ_prowadzacy_gmi text NOT NULL CHECK (organ_prowadzacy_gmi != ''),
+	miejsce_w_strukt miejsce_w_strukt NOT NULL,
+	jedn_nadrz_id int,
+	jedn_nadrz_typ text,
+	PRIMARY KEY (id_szk, rok_szk),
+	FOREIGN KEY (id_szk, typ_szk_rspo, publicznosc, kategoria_uczniow, specyfika, organ_prowadzacy_id, organ_prowadzacy_sposob, organ_prowadzacy_typ)
+	             REFERENCES w26b (id_szk, typ_szk, publicznosc, kategoria_uczniow, specyfika, organ_prowadzacy_id, organ_prowadzacy_sposob,
+                   				  organ_prowadzacy_typ) ON DELETE CASCADE ON UPDATE CASCADE,
+	FOREIGN KEY (id_szk, rok_szk, nazwa_szk, teryt_gmi_szk, wojewodztwo_szk, powiat_szk, gmina_szk,
+                 simc_miejsc, miejscowosc, rodzaj_miejsc, sym_ul, ulica, nr_budynku, nr_lokalu, pna, poczta,
+                 organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
+                 organ_prowadzacy_woj, organ_prowadzacy_pow, organ_prowadzacy_gmi, miejsce_w_strukt,
+                 jedn_nadrz_id, jedn_nadrz_typ)
+				 REFERENCES w26 (id_szk, rok_szk, nazwa_szk, teryt_gmi_szk, wojewodztwo_szk, powiat_szk, gmina_szk,
+                                 simc_miejsc, miejscowosc, rodzaj_miejsc, sym_ul, ulica, nr_budynku, nr_lokalu, pna, poczta,
+                                 organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
+                                 organ_prowadzacy_woj, organ_prowadzacy_pow, organ_prowadzacy_gmi, miejsce_w_strukt,
+                                 jedn_nadrz_id, jedn_nadrz_typ) ON DELETE CASCADE ON UPDATE CASCADE
 );
 ```
