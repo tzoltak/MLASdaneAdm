@@ -1,3 +1,9 @@
+# MLASdaneAdm 1.0.1 (23.07.2025)
+
+## Naprawione błędy
+
+-   `przygotuj_tabele_posrednie()` konwertuje kolumny `l_prac_(...)` w P4 z formatu *int64* (nieobsługiwanego poprawnie bez załadowania biblioteki DBI) na *integer* oraz, co ma mniejszą wagę, usuwa z kilku zmiennych (tekstowyych) w P6 typy specyficzne typy danych (enumerujące w bazie dopuszczalne wartości) pobrane z bazy.
+
 # MLASdaneAdm 1.0.0 (27.06.2025)
 
 ## Nowa tabela wejściowa

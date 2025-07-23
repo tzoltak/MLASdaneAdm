@@ -85,6 +85,7 @@
 #'                   group_by join_by if_else inner_join left_join mutate n
 #'                   order_by pull reframe rename right_join select
 #'                   slice_min slice_max starts_with summarise tbl ungroup
+#'                   where
 #' @importFrom lubridate days month year
 #' @importFrom DBI dbConnect dbExecute dbDisconnect
 #' @export
@@ -1031,7 +1032,7 @@ przygotuj_tabele_posrednie <- function(
                                               "Szkoła specjalna przysposabiająca do pracy",
                                               sort(unique(.data$typ_szk))))),
              across(starts_with("abs_w_"), ~if_else(is.na(.), FALSE, .)),
-             across(starts_with("l_prac_"), ~if_else(is.na(.), 0L, .)))
+             across(starts_with("l_prac_"), ~if_else(is.na(.), 0L, as.integer(.))))
     # identyfikacja duplikatów
     tabelePosrednie$p4 <- tabelePosrednie$p4 %>%
       add_count(.data$id_abs, .data$rok_abs, .data$id_szk,
@@ -1088,7 +1089,8 @@ przygotuj_tabele_posrednie <- function(
   if (przygotujP6) {
     cat("\nTabela P6 przygotowana.")
     tabelePosrednie$p6 <- collect(t26) %>%
-      mutate(organ_prowadzacy_teryt = .data$organ_prowadzacy_teryt / 100L)
+      mutate(organ_prowadzacy_teryt = .data$organ_prowadzacy_teryt / 100L,
+             across(where(is.character), as.character)) # pozbywanie się typów zdefiniowanych w bazie
   }
   # kończenie ##################################################################
   cat("\nKoniec: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
