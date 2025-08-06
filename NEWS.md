@@ -1,3 +1,10 @@
+# MLASdaneAdm 1.1.0 (06.08.2025)
+
+## Nowe funkcje
+
+-   `przygotuj_dane_do_w26()` automatyzuje proces przygotowywania tabeli *wejściowej* W26 na podstawie danych wyeksportowanych z publicznego API WWW RSPO oraz danych o *idPodmiotu* SIO organów prowadzących wyeksportowane z hurtowni SIO.
+    -   Fragment kodu odpowiedzialny za zidentyfikowanie w danych monitoringu unikalnych szkoło-lat szkolnych został wydzielony do nowej, nieeksportowanej funkcji `zidentyfikuj_szkolo_lata_w_danych()`, gdyż jest on wykorzystywany również w ramach `wczytaj_tabele_wejsciowe()`.
+
 # MLASdaneAdm 1.0.1 (23.07.2025)
 
 ## Naprawione błędy

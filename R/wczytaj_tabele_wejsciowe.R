@@ -221,41 +221,11 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
          "'TYP_SZK', 'PUBLICZNOSC', 'KATEGORIA_UCZNIOW', 'SPECYFIKA', 'ORGAN_PROWADZACY_ID', 'ORGAN_PROWADZACY_SPOSOB', 'ORGAN_PROWADZACY_TYP' ",
          "różnią się pomiędzy niektórymi latami szkolnymi, choć jest to niedozwolone (zakładamy, że są to charakterystyki stałe w czasie).")
   }
-  szkoloLataSzkWDanych <-
-    bind_rows(tabeleWejsciowe$W2 %>%
-                select("ID_SZK", ROK_SZK = "ROK_ABS") %>%
-                distinct() %>%
-                mutate(ROK_SZK = .data$ROK_SZK - 1L,
-                       zrodlo = "W2"),
-              tabeleWejsciowe$W3 %>%
-                mutate(zrodlo = "W3",
-                       across(starts_with("data"),
-                              ~data2rokszk(., max = rokMonitoringu - 1L,
-                                           tekst = FALSE))) %>%
-                rename(ID_SZK = "ID_SZK_KONT") %>%
-                group_by(.data$ID_SZK, .data$zrodlo) %>%
-                reframe(ROK_SZK = min(.data$DATA_OD_SZK_KONT):max(.data$DATA_DO_SZK_KONT)),
-              tabeleWejsciowe$W4 %>%
-                mutate(zrodlo = "W4",
-                       across(starts_with("data"),
-                              ~data2rokszk(., max = rokMonitoringu - 1L,
-                                           tekst = FALSE))) %>%
-                rename(ID_SZK = "ID_SZK_KONT") %>%
-                group_by(.data$ID_SZK, .data$zrodlo) %>%
-                reframe(ROK_SZK = min(.data$DATA_OD_KKZ):max(.data$DATA_DO_KKZ)),
-              tabeleWejsciowe$W5 %>%
-                mutate(zrodlo = "W5",
-                       across(starts_with("data"),
-                              ~data2rokszk(., max = rokMonitoringu - 1L,
-                                           tekst = FALSE))) %>%
-                rename(ID_SZK = "ID_SZK_KONT") %>%
-                group_by(.data$ID_SZK, .data$zrodlo) %>%
-                reframe(ROK_SZK = min(.data$DATA_OD_KUZ):max(.data$DATA_DO_KUZ))) %>%
-    group_by(.data$ID_SZK, .data$ROK_SZK) %>%
-    mutate(zrodlo = paste(.data$zrodlo, collapse = ", ")) %>%
-    ungroup() %>%
-    distinct() %>%
-    mutate(ROK_SZK = paste0(.data$ROK_SZK, "/", .data$ROK_SZK + 1L))
+  szkoloLataSzkWDanych <- zidentyfikuj_szkolo_lata_w_danych(tabeleWejsciowe$W2,
+                                                            tabeleWejsciowe$W3,
+                                                            tabeleWejsciowe$W4,
+                                                            tabeleWejsciowe$W5,
+                                                            rokMonitoringu)
   brakujaceDaneSzkol <- anti_join(szkoloLataSzkWDanych, tabeleWejsciowe$W26,
                                   by = c("ID_SZK", "ROK_SZK"))
   tabeleWejsciowe$W26 <- semi_join(tabeleWejsciowe$W26, szkoloLataSzkWDanych,
