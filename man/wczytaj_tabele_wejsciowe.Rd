@@ -16,7 +16,8 @@ wczytaj_tabele_wejsciowe(
 \arguments{
 \item{baza}{uchwyt połączenia do bazy lub lista argumentów do funkcji
 \code{\link[DBI:dbConnect]{DBI::dbConnect()}} umożliwiających nawiązanie połączenia z bazą
-danych, w której mają zostać zapisane wczytywane dane}
+danych, w której mają zostać zapisane wczytywane dane lub \code{NULL}, jeśli
+argument \code{wczytajDoBazy} podano jako \code{FALSE}}
 
 \item{folder}{opcjonalnie ścieżka do folderu zawierającego pliki CSV z danymi
 (domyślnie używany jest aktywny katalog roboczy)}

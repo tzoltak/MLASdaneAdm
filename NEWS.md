@@ -1,3 +1,27 @@
+# MLASdaneAdm 1.2.0 (08.08.2025)
+
+## Ulepszona diagnostyka
+
+-   `wczytaj_tabele_wejsciowe()`:
+    -   sprawdza, czy w plikach z tabelami wejściowymi (innych niż 'W1.csv') nie występują kombinacje (`ID_ABS`, `ROK_ABS`), których brakuje w 'W1.csv' (a jeśli występują, to zwraca błąd),
+    -   sprawdza, czy daty w plikach z tabelami wejściowymi 'W7.csv', 'W8.csv', 'W9.csv', 'W10.csv' i 'W11.csv') nie ma braków danych w kolumnach z datami (już po próbie konwersji z ciągów znaków na daty) oraz czy nie ma w nich dat wskazują na przyszłość (a jeśli tak, rzuca ostrzeżeniem, żeby nie blokować możliwości przeprowadzenia dalszej diagnostyki),
+    -   sprawdza, czy kolumny z datami w pliku z tabelami wejściowymi 'W12.csv' nie są brakami danych - odpowiednio do wartości kolumny `CZY_UKONCZ_STU` - oraz nie ma w nich dat wskazują na przyszłość (a jeśli tak, rzuca ostrzeżeniem, żeby nie blokować możliwości przeprowadzenia dalszej diagnostyki),
+    -   sprawdza, czy w plikach z tabelami wejściowymi nie brakuje danych dot. niektórych roczników (które występują w innych plikach wejściowych),
+    -   jest nieco bardziej liberalna w stosunku do absolwentów BS I, a mniej w stosunku do absolwentów innych typów szkół, jeśli chodzi o kryteria klasyfikowania odsetka dołączających się certyfikatów kwalifikacji i dyplomów zawodowych jako podejrzanie niskich,
+    -   komunikuje brakujące kody składek i przerw w opłacaniu składek ZUS przed próbą zapisu do bazy (która w sytuacji takiego braku nie może się powieść) i robi to teraz w formie ostrzeżenia.
+-   Nowa funkcja `porownaj_liczbe_wierszy_w_tabelach_wejsciowych()` pozwala (dosyć) szybko i wygodnie sprawdzić, czy jakieś pliki z tabelami *wejściowymi* nie są podejrzanie małe w porównaniu do tych z poprzednich edycji.
+
+## Ulepszony import tabel wejściowych
+
+-   `wczytaj_tabele_wejsciowe()` jest liberalniejsze względem formatów dat w plikach wejściowych i akceptuje zarówno "%d-%m-%Y" jak i "%d/%m/%Y".
+-   `wczytaj_tabele_wejsciowe()` (w końcu) potrafi działać bez przekazania jej połączenia z bazą danych, jeśli tylko ustawiono wartość argumentu `wczytajDoBazy` na `FALSE`.
+
+## Zmiany w tworzeniu tabel *pośrednich*
+
+-   `przygotuj_tabele_posrednie()` używa funkcji pakietu *LOSYwskazniki* (który został w ten sposób nową zależnością) do uzupełnienia tabeli *pośredniej* P4 o zestaw wszystkich wskaźników, których (agregatów) używamy w obecnie publikowanych raportach z monitoringu.
+-   `przygotuj_tabele_posrednie()` przygotowując P2 bierze pod uwagę wszystkie typy szkół z W3 (zgodnie z dokumentacją), a nie tylko te kształcące zawodowo.
+-   `przygotuj_tabele_posrednie()` przygotowując P2 zwraca wartość `typ_szk_kont` dla studiów jako "Studia", zamiast "studia", dla zachowania zgodności konwencji pisowni z typami szkół objętymi SIO.
+
 # MLASdaneAdm 1.1.0 (06.08.2025)
 
 ## Nowe funkcje
@@ -21,7 +45,7 @@
 
 -   `wczytaj_tabele_wejsciowe()` zamienia twarde spacje w nazwach zawodów na zwykłe i usuwa spacje na końcu nazw zawodów.
 
-## Zmiany w tworzeniu tabel pośrednich
+## Zmiany w tworzeniu tabel *pośrednich*
 
 -   Wartości domyślne parametrów `przygotuj_tabele_posrednie()`:
     -   rekordy w P3 są domyślnie tworzone tylko do marca roku prowadzenia monitoringu (w pierwszych edycjach ZUS wyrabiał się z zapewnieniem kompletnych danych do maja, ale obecnie już tylko do marca),

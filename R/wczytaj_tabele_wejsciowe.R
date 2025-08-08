@@ -4,7 +4,8 @@
 #' do bazy.
 #' @param baza uchwyt połączenia do bazy lub lista argumentów do funkcji
 #' [DBI::dbConnect()] umożliwiających nawiązanie połączenia z bazą
-#' danych, w której mają zostać zapisane wczytywane dane
+#' danych, w której mają zostać zapisane wczytywane dane lub `NULL`, jeśli
+#' argument `wczytajDoBazy` podano jako `FALSE`
 #' @param folder opcjonalnie ścieżka do folderu zawierającego pliki CSV z danymi
 #' (domyślnie używany jest aktywny katalog roboczy)
 #' @param wczytajDoBazy opcjonalnie wartość logiczna - czy przeprowadzić zapis
@@ -37,9 +38,9 @@
 wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                                     zapiszProblemy = TRUE,
                                     usunAbsWKilkuZaw = TRUE, plikLogu = NULL) {
-  stopifnot(is.list(baza) | inherits(baza, "DBIConnection"),
+  stopifnot(length(wczytajDoBazy) == 1L, wczytajDoBazy %in% c(FALSE, TRUE),
+            is.list(baza) | inherits(baza, "DBIConnection") | wczytajDoBazy == FALSE,
             dir.exists(folder),
-            length(wczytajDoBazy) == 1L, wczytajDoBazy %in% c(FALSE, TRUE),
             length(zapiszProblemy) == 1L, zapiszProblemy %in% c(FALSE, TRUE),
             length(usunAbsWKilkuZaw) == 1L, usunAbsWKilkuZaw %in% c(FALSE, TRUE))
   if (!is.null(plikLogu)) {
@@ -53,17 +54,17 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     plikLogu <- file(plikLogu, open = "wt")
     sink(plikLogu, type = "message")
   }
-  if (is.list(baza)) {
+  if (is.list(baza) & wczytajDoBazy) {
     con <- do.call(dbConnect, args = baza)
-  } else {
+  } else if (wczytajDoBazy) {
     con <- baza
   }
   on.exit({
-    if (!inherits(baza, "DBIConnection")) dbDisconnect(con)
-    sink(NULL, type = "message")
+    if (!inherits(baza, "DBIConnection") & wczytajDoBazy) dbDisconnect(con)
+    sink(type = "message")
     })
-  dbExecute(con, "BEGIN;")
-  tabeleWejsciowe = names(tabele_wejsciowe())
+  if (wczytajDoBazy) dbExecute(con, "BEGIN;")
+  tabeleWejsciowe <- names(tabele_wejsciowe())
   tabeleWejsciowe <- setNames(paste0(sub("[\\/]$", "", folder), "/",
                                      tabeleWejsciowe, ".csv"),
                               tabeleWejsciowe)
@@ -79,6 +80,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   brakujaceKolumny <- setNames(vector(mode = "list",
                                       length = length(tabeleWejsciowe)),
                                names(tabeleWejsciowe))
+  wystepujacaRoczniki <- brakujaceKolumny
   brakiIdAbs <- setNames(rep(NA_integer_, length(tabeleWejsciowe)),
                          names(tabeleWejsciowe))
   for (i in seq_along(tabeleWejsciowe)) {
@@ -101,12 +103,32 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
             brakiIdAbs[i], " rekordach.\n", sep = "")
       }
     }
+    if ("ROK_ABS" %in% names(tabeleWejsciowe[[i]])) {
+      wystepujacaRoczniki[[i]] <- unique(tabeleWejsciowe[[i]]$ROK_ABS)
+    }
   }
   if (sum(sapply(brakujaceKolumny, length)) > 0L ||
       sum(brakiIdAbs, na.rm = TRUE) > 0L) {
     stop("Brak wymaganych kolumn lub braki danych w kolumnach ROK_ABS lub ID_ABS w co najmniej jednym z wczytywanych plików (p. informacje powyżej).")
   }
   rokMonitoringu <- max(tabeleWejsciowe$W1$ROK_ABS) + 1L
+  message("Na podstawie danych rok prowadzenia monitoringu określono na: ",
+          rokMonitoringu, "\n")
+  wszystkieRoczniki <- sort(unique(unlist(wystepujacaRoczniki)))
+  message("W plikach z tabelami wejściowymi wykryto następujące wartości zmiennej `ROK_ABS`: ",
+          paste(wszystkieRoczniki, collapse = ", "), "\n")
+  brakujaceRoczniki <-
+    wystepujacaRoczniki[sapply(wystepujacaRoczniki, length) > 0L] %>%
+    lapply(function(x, wszystkieRoczniki) {return(setdiff(wszystkieRoczniki, x))},
+           wszystkieRoczniki = wszystkieRoczniki)
+  brakujaceRoczniki <- brakujaceRoczniki[sapply(brakujaceRoczniki, length) > 0L]
+  if (length(brakujaceRoczniki) > 0L) {
+    brakujaceRoczniki <- sapply(brakujaceRoczniki, paste, collapse = ", ")
+    warning("W niektórych z wczytanych plików nie wystąpiły niektóre roczniki absolwentów:\n",
+            paste0("- ", names(brakujaceRoczniki), ": ", brakujaceRoczniki,
+                   collapse = ";\n"), ".\n",
+            call. = FALSE, immediate. = TRUE)
+  }
   cat("\nPoczątek przetwarzania danych: ",
       format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
   # kody szkół, dla których brak mapowania #####################################
@@ -134,6 +156,26 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                          return()
                      }), collapse = "\n"),
          "\nUzupełnij mapowania w pliku 'STYPSZK.csv'.")
+  }
+  # sprawdzanie, czy wszystkie kombinacje (ID_ABS, ROK_ABS) występują w W1 #####
+  tabeleZAbs <- names(tabele_wejsciowe())[
+    sapply(tabele_wejsciowe(),
+           function(x) return(all(c("ID_ABS", "ROK_ABS") %in% x)))]
+  absNieWW1 <- sapply(tabeleWejsciowe[setdiff(tabeleZAbs, "W1")],
+                      function(x, w1) {
+                        anti_join(x, w1, by = c("ID_ABS", "ROK_ABS")) %>%
+                          select("ID_ABS", "ROK_ABS") %>%
+                          distinct() %>%
+                          arrange(.data$ID_ABS, .data$ROK_ABS) %>%
+                          mutate(etykieta = paste0("(", .data$ID_ABS, ", ", .data$ROK_ABS, ")")) %>%
+                          pull("etykieta") %>%
+                          paste(collapse = ", ") %>%
+                          return()
+                      }, w1 = tabeleWejsciowe$W1)
+  absNieWW1 <- absNieWW1[absNieWW1 != ""]
+  if (length(absNieWW1) > 0L) {
+    stop("W niektórych tabelach wejściowych istnieją kombinacje wartości kolumn (ID_ABS, ROK_ABS), które nie występują w pliku 'W1.csv':\n",
+         paste0(names(absNieWW1), ": ", absNieWW1, collapse = "\n"))
   }
   # identyfikowanie i wykluczanie absolwentów w W1, których brak w W2 ##########
   brakujacyW2 <- tabeleWejsciowe$W1 %>%
@@ -170,8 +212,8 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   if (nrow(duplikatyId) > 0L) {
     message("Wykryto ", nrow(duplikatyId), " ewidentnie zduplikowanych ID absolwenta (różne płcie lub lata urodzenia dla osób o tym samym ID).\nDane dotyczące tych ID zostaną wykluczone z importu.",
             ifelse(zapiszProblemy,
-                   "\nZestawienie tych ID absolwenta zostanie zapisane w pliku 'duplikaty-ID-absolwenta.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to ID absolwenta, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nZestawienie tych ID absolwenta zostanie zapisane w pliku 'duplikaty-ID-absolwenta.csv'.\n",
+                   "\nJeżeli chcesz móc sprawdzić, które to ID absolwenta, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
     if (zapiszProblemy) {
       write.csv2(duplikatyIdW2, "duplikaty-ID-absolwenta.csv",
                  row.names = FALSE, na = "", fileEncoding = "UTF-8")
@@ -179,9 +221,9 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     tabeleWejsciowe$W1 <- tabeleWejsciowe$W1 %>%
       anti_join(duplikatyId,
                 by = c("ID_ABS", "ROK_ABS"))
-    tabeleWejsciowe$W2 <- tabeleWejsciowe$W2 %>%
-      anti_join(duplikatyId,
-                by = c("ID_ABS", "ROK_ABS"))
+    tabeleWejsciowe[tabeleZAbs] <- lapply(tabeleWejsciowe[tabeleZAbs],
+                                          anti_join, y = duplikatyId,
+                                          by = c("ID_ABS", "ROK_ABS"))
   }
   # sprawdzanie kompletności W25 (mapowanie TERYTów powiatów) ##################
   tabeleWejsciowe$W2 <- tabeleWejsciowe$W2 %>%
@@ -254,8 +296,8 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     ungroup() %>%
     filter(.data$n_zaw > 1L, .data$TYP_SZK != 19L)
   if (nrow(multiAbsolwenci) > 0L) {
-    message("\nWykryto ", nrow(multiAbsolwenci), " osoby, które są absolwentami więcej niż jednego zawodu w tej samej szkole, niebędącej szkołą policealną.",
-            ifelse(usunAbsWKilkuZaw, "\nZostaną one wykluczone z importu.", ""))
+    message("Wykryto ", nrow(multiAbsolwenci), " osoby, które są absolwentami więcej niż jednego zawodu w tej samej szkole, niebędącej szkołą policealną.",
+            ifelse(usunAbsWKilkuZaw, "\nZostaną one wykluczone z importu.\n", "\n"))
     if (usunAbsWKilkuZaw) {
       tabeleWejsciowe$W2 <- tabeleWejsciowe$W2 %>%
         anti_join(multiAbsolwenci,
@@ -266,10 +308,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     }
   }
   if (nrow(multiAbsolwenciSzkoly) > 0L) {
-    message("\nW danych wystąpiły szkoły (włączając szkoły policealne), w których niektóre osoby są absolwentami więcej niż jednego zawodu.",
+    message("W danych wystąpiły szkoły (włączając szkoły policealne), w których niektóre osoby są absolwentami więcej niż jednego zawodu.",
             ifelse(zapiszProblemy,
-                   "\nZestawienie tych szkół zostanie zapisane w pliku 'szkoły-z-multiabsolwentami.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nZestawienie tych szkół zostanie zapisane w pliku 'szkoły-z-multiabsolwentami.csv'.\n",
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
     if (zapiszProblemy) {
       write.csv2(multiAbsolwenciSzkoly, "szkoły-z-multiabsolwentami.csv",
                  row.names = FALSE, na = "", fileEncoding = "UTF-8")
@@ -324,7 +366,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
               params = list(tabeleWejsciowe$STYPSZK$TYP_SZK_NAZWA))
     cat(" zakończony.")
     # W25 (słownik powiatów)
-    cat("\nZapis do bazy tabeli W25...")
+    cat("\nZapis do bazy tabeli W25 (podział terytorialny Polski)...")
     dbExecute(con,
               "INSERT INTO W25 (teryt_pow, powiat, wojewodztwo, nts, makroregion,
                                 region, podregion)
@@ -348,7 +390,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                 unname())
     cat(" zakończony.")
     # W26 (informacje o szkołach z RSPO)
-    cat("\nZapis do bazy tabel W26, W26a i W26b...")
+    cat("\nZapis do bazy tabel W26, W26a i W26b (charakterystyki wszystkich szkoło-lat szkolnych)...")
     dbExecute(con,
               "INSERT INTO W26a (id_szk)
                VALUES ($1)",
@@ -475,17 +517,17 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     cat(" zakończony.")
   }
   if (length(nieliczboweKodyZawodow) > 0) {
-    message("\nWykryto następujące kody zawodów, niebędące liczbami całkowitymi:\n",
-            paste(komunikatONieliczbowychKodachZawodów, collapse = "\n"))
+    message("Wykryto następujące kody zawodów, niebędące liczbami całkowitymi:\n",
+            paste(komunikatONieliczbowychKodachZawodów, collapse = "\n"), "\n")
   }
   if (nrow(zawodyBezMapowania) > 0L) {
-    message("\nWykryto następujące kody zawodów, dla których brak jest mapowania na branże:\n",
+    message("Wykryto następujące kody zawodów, dla których brak jest mapowania na branże:\n",
             paste(zawodyBezMapowania %>%
                     mutate(KOD_ZAW = paste0(.data$KOD_ZAW,
                                             " (", .data$tabele, ")")) %>%
                     pull("KOD_ZAW"),
                   collapse = ", "),
-            ".\nRozważ uzupełnienie mapowania w pliku 'W20aneks.csv'.")
+            ".\nRozważ uzupełnienie mapowania w pliku 'W20aneks.csv'.\n")
     if (zapiszProblemy) {
       write.csv2(zawodyBezMapowania,
                  "kody-zawodów-bez-przypisania-do-branż.csv",
@@ -524,8 +566,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     mutate(DATA_DO_SZK_KONT = ifelse(.data$DATA_DO_SZK_KONT == "31-12-9999",
                                      NA,
                                      .data$DATA_DO_SZK_KONT)) %>%
-    mutate(DATA_OD_SZK_KONT = as.Date(.data$DATA_OD_SZK_KONT, "%d-%m-%Y"),
-           DATA_DO_SZK_KONT = as.Date(.data$DATA_DO_SZK_KONT, "%d-%m-%Y"),
+    mutate(DATA_OD_SZK_KONT = as.Date(.data$DATA_OD_SZK_KONT,
+                                      tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
+           DATA_DO_SZK_KONT = as.Date(.data$DATA_DO_SZK_KONT,
+                                      tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
            CZY_UKONCZ_SZK_KONT = if_else(!is.na(.data$DATA_DO_SZK_KONT) &
                                            .data$CZY_UKONCZ_SZK_KONT %in% 0L,
                                          1L, .data$CZY_UKONCZ_SZK_KONT)) %>%
@@ -596,10 +640,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     cat(" zakończony.")
   }
   if (nrow(multiAbsolwenciKont) > 0L) {
-    message("\nWśród szkół, w których absolwenci kontynuują naukę wykryto takie, w których te same osoby są absolwentami więcej niż jednego zawodu.",
+    message("Wśród szkół, w których absolwenci kontynuują naukę wykryto takie, w których te same osoby są absolwentami więcej niż jednego zawodu.",
             ifelse(zapiszProblemy,
-                   "\nZestawienie tych szkół zostanie zapisane w pliku 'szkoły-z-multiabsolwentami-kontynuacja-nauki.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nZestawienie tych szkół zostanie zapisane w pliku 'szkoły-z-multiabsolwentami-kontynuacja-nauki.csv'.\n",
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
     if (zapiszProblemy) {
       write.csv2(multiAbsolwenciKont,
                  "szkoły-z-multiabsolwentami-kontynuacja-nauki.csv",
@@ -607,10 +651,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     }
   }
   if (nrow(kontynuacjaWsteczna) > 0L) {
-    message("\nWśród danych o kontynuacji nauki zidentyfikowano rekordy, które wedle wszelkiego prawdopodobieństwa opisują naukę w szkole (i zawodzie), jako absolwent której dana osoba została objęta monitoringiem.",
+    message("Wśród danych o kontynuacji nauki zidentyfikowano rekordy, które wedle wszelkiego prawdopodobieństwa opisują naukę w szkole (i zawodzie), jako absolwent której dana osoba została objęta monitoringiem.",
             ifelse(zapiszProblemy,
-                   "\nZestawienie tych rekordów zostanie zapisane w pliku 'nauka-w-szkole-ktorej-absolwentem-w-kontynuacji-nauki.csv'.\nUwaga, z założenia nie obejmuje ono szkół policealnych, może też nie obejmować uczniów, którzy powtarzali klasę i pewnie jeszcze jakichś innych mniej typowych przypadków.",
-                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nZestawienie tych rekordów zostanie zapisane w pliku 'nauka-w-szkole-ktorej-absolwentem-w-kontynuacji-nauki.csv'.\nUwaga, z założenia nie obejmuje ono szkół policealnych, może też nie obejmować uczniów, którzy powtarzali klasę i pewnie jeszcze jakichś innych mniej typowych przypadków.\n",
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
     if (zapiszProblemy) {
       write.csv2(kontynuacjaWsteczna,
                  "nauka-w-szkole-ktorej-absolwentem-w-kontynuacji-nauki.csv",
@@ -644,8 +688,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     mutate(DATA_DO_KKZ = ifelse(.data$DATA_DO_KKZ == "31-12-9999",
                                 NA_character_,
                                 .data$DATA_DO_KKZ)) %>%
-    mutate(DATA_OD_KKZ = as.Date(.data$DATA_OD_KKZ, "%d-%m-%Y"),
-           DATA_DO_KKZ = as.Date(.data$DATA_DO_KKZ, "%d-%m-%Y")) %>%
+    mutate(DATA_OD_KKZ = as.Date(.data$DATA_OD_KKZ,
+                                 tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
+           DATA_DO_KKZ = as.Date(.data$DATA_DO_KKZ,
+                                 tryFormats = c("%d-%m-%Y", "%d/%m/%Y"))) %>%
     group_by(.data$ID_ABS, .data$ROK_ABS, .data$ID_SZK_KONT) %>%
     mutate(lp = seq_len(n())) %>%
     ungroup()
@@ -669,8 +715,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     mutate(DATA_DO_KUZ = ifelse(.data$DATA_DO_KUZ == "31-12-9999",
                                 NA_character_,
                                 .data$DATA_DO_KUZ)) %>%
-    mutate(DATA_OD_KUZ = as.Date(.data$DATA_OD_KUZ, "%d-%m-%Y"),
-           DATA_DO_KUZ = as.Date(.data$DATA_DO_KUZ, "%d-%m-%Y")) %>%
+    mutate(DATA_OD_KUZ = as.Date(.data$DATA_OD_KUZ,
+                                 tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
+           DATA_DO_KUZ = as.Date(.data$DATA_DO_KUZ,
+                                 tryFormats = c("%d-%m-%Y", "%d/%m/%Y"))) %>%
     group_by(.data$ID_ABS, .data$ROK_ABS, .data$ID_SZK_KONT) %>%
     mutate(lp = seq_len(n())) %>%
     ungroup()
@@ -703,10 +751,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     cat(" zakończony.")
   }
   if (any(tabeleWejsciowe$W6$n > 1)) {
-    message("\nWśród danych o dyplomach czeladnika (W6) znaleziono powtórzone rekordy.",
+    message("Wśród danych o dyplomach czeladnika (W6) znaleziono powtórzone rekordy.",
             ifelse(zapiszProblemy,
-                   "\nZestawienie tych szkół zostanie zapisane w pliku 'wielokrotni-czeladnicy.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nZestawienie tych szkół zostanie zapisane w pliku 'wielokrotni-czeladnicy.csv'.\n",
+                   "\nJeżeli chcesz móc sprawdzić, które to szkoły, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
     if (zapiszProblemy) {
       write.csv2(tabeleWejsciowe$W6 %>%
                    filter(n > 1),
@@ -720,15 +768,31 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
     mutate(CZY_ZDANA_MATURA = as.logical(.data$CZY_ZDANA_MATURA),
-           DATA_SWIAD_MATURA = as.Date(.data$DATA_SWIAD_MATURA, "%d-%m-%Y")) %>%
+           DATA_SWIAD_MATURA = as.Date(.data$DATA_SWIAD_MATURA,
+                                       tryFormats = c("%d-%m-%Y", "%d/%m/%Y"))) %>%
     add_count(.data$ID_ABS, .data$ROK_ABS, .data$ROK_MATURA) %>%
     arrange(.data$ID_ABS, .data$ROK_ABS, .data$ROK_MATURA,
             desc(.data$CZY_ZDANA_MATURA), .data$DATA_SWIAD_MATURA) %>%
     group_by(.data$ID_ABS, .data$ROK_ABS, .data$ROK_MATURA) %>%
     slice(1L) %>%
     ungroup()
+  maturyBrakDaty <- is.na(tabeleWejsciowe$W7$DATA_SWIAD_MATURA) &
+    tabeleWejsciowe$W7$CZY_ZDANA_MATURA
+  if (any(maturyBrakDaty, na.rm = TRUE)) {
+    warning("\nW danych dot. wyników matury (W7) łącznie ",
+            sum(maturyBrakDaty, na.rm = TRUE),
+            " rekord(y/ów) ma brak danych w kolumnie DATA_SWIAD_MATURA, choć wartość kolumny CZY_ZDANA_MATURA wskazuje na zdanie matury!\n",
+            immediate. = TRUE, call. = FALSE)
+  }
+  maturyWPRzyszlosci <- year(tabeleWejsciowe$W7$DATA_SWIAD_MATURA) > rokMonitoringu
+  if (any(maturyWPRzyszlosci, na.rm = TRUE)) {
+    warning("\nW danych dot. wyników matury (W7) łącznie ",
+            sum(maturyWPRzyszlosci, na.rm = TRUE),
+            " rekord(y/ów) ma wartosći kolumny DATA_SWIAD_MATURA wskazujące na lata późniejsze niż ",
+            rokMonitoringu, "!\n", immediate. = TRUE, call. = FALSE)
+  }
   if (!any(tabeleWejsciowe$W7$ROK_MATURA < min(tabeleWejsciowe$W7$ROK_ABS))) {
-    message("\nW danych dot. wyników matury (W7) nie ma rekordów opisujących egzaminy z lat wcześniejszych, niż rok ukończenia szkoły dla ROK_ABS równych: ",
+    message("W danych dot. wyników matury (W7) nie ma rekordów opisujących egzaminy z lat wcześniejszych, niż rok ukończenia szkoły dla ROK_ABS równych: ",
             tabeleWejsciowe$W7 %>%
               group_by(.data$ROK_ABS) %>%
               summarise(brakWczesniejszychWynikow =
@@ -736,7 +800,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
               filter(.data$brakWczesniejszychWynikow) %>%
               pull("ROK_ABS") %>%
               paste(collapse = ", "),
-            ". Dane te są najprawdopodobniej niekompletne!")
+            ". Dane te są najprawdopodobniej niekompletne!\n")
   }
   ## Szybki test (nie)kompletności danych o wynikach matury ####################
   diagnostykaKompletnosciMatura <- tabeleWejsciowe$W2 %>%
@@ -751,10 +815,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     summarise(zdawal_mature_pct = round(100*mean(!is.na(.data$ROK_MATURA)), 2),
               .groups = "drop")
   if (any(diagnostykaKompletnosciMatura$zdawal_mature_pct < 80)) {
-    message("\nDane o wynikach matury (tabela 'W7') wyglądają na niekompletne.",
+    message("Dane o wynikach matury (tabela 'W7') wyglądają na niekompletne.",
             ifelse(zapiszProblemy,
-                   "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'matura-kompletnosc.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o wynikach matury, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'matura-kompletnosc.csv'.\n",
+                   "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o wynikach matury, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
   }
   if (zapiszProblemy) {
     write.csv2(diagnostykaKompletnosciMatura,
@@ -781,11 +845,42 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   tabeleWejsciowe$W8 <- tabeleWejsciowe$W8 %>%
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
-    mutate(DATA_KWAL = as.Date(.data$DATA_KWAL, "%d-%m-%Y"))
+    mutate(DATA_KWAL = as.Date(.data$DATA_KWAL,
+                               tryFormats = c("%d-%m-%Y", "%d/%m/%Y")))
+  w8BrakDaty <- is.na(tabeleWejsciowe$W8$DATA_KWAL)
+  if (any(w8BrakDaty, na.rm = TRUE)) {
+    warning("\nW danych dot. certyfikatów kwalifikacji (W8) łącznie ",
+            sum(w8BrakDaty, na.rm = TRUE),
+            " rekord(y/ów) ma brak danych w kolumnie DATA_KWAL!\n",
+            immediate. = TRUE, call. = FALSE)
+  }
+  w8WPRzyszlosci <- year(tabeleWejsciowe$W8$DATA_KWAL) > rokMonitoringu
+  if (any(w8WPRzyszlosci, na.rm = TRUE)) {
+    warning("\nW danych dot. certyfikatów kwalifikacji (W8) łącznie ",
+            sum(w8WPRzyszlosci, na.rm = TRUE),
+            " rekord(y/ów) ma w kolumnie DATA_KWAL wartości wskazujące na lata późniejsze niż ",
+            rokMonitoringu, "!\n", immediate. = TRUE, call. = FALSE)
+  }
   tabeleWejsciowe$W10 <- tabeleWejsciowe$W10 %>%
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
-    mutate(DATA_KWAL = as.Date(.data$DATA_KWAL, "%d-%m-%Y"))
+    mutate(DATA_KWAL = as.Date(.data$DATA_KWAL,
+                               tryFormats = c("%d-%m-%Y", "%d/%m/%Y")))
+  w10BrakDaty <- is.na(tabeleWejsciowe$W10$DATA_KWAL)
+  if (any(w10BrakDaty, na.rm = TRUE)) {
+    warning("\nW danych dot. certyfikatów kwalifikacji (W10) łącznie ",
+            sum(w10BrakDaty, na.rm = TRUE),
+            " rekord(y/ów) ma w kolumnie DATA_KWAL brak danych w kolumnie DATA_KWAL!\n",
+            immediate. = TRUE, call. = FALSE)
+  }
+  w10WPRzyszlosci <- year(tabeleWejsciowe$W10$DATA_KWAL) > rokMonitoringu
+  if (any(w10WPRzyszlosci, na.rm = TRUE)) {
+    warning("\nW danych dot. certyfikatów kwalifikacji (W10) łącznie ",
+            sum(w10WPRzyszlosci, na.rm = TRUE),
+            " rekord(y/ów) ma wartości wskazujące na lata późniejsze niż ",
+            rokMonitoringu, "!\n",
+            immediate. = TRUE, call. = FALSE)
+  }
   multiKwal <- bind_rows(list(W8 = tabeleWejsciowe$W8,
                               W10 = tabeleWejsciowe$W10), .id = "table") %>%
     distinct() %>%
@@ -815,10 +910,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     cat(" zakończony.")
   }
   if (nrow(multiKwal) > 0L) {
-    message("\nWykryto osoby, które kilkakrotnie zdawały egzaminy na tę samą kwalifikację.",
+    message("Wykryto osoby, które kilkakrotnie zdawały egzaminy na tę samą kwalifikację.",
             ifelse(zapiszProblemy,
-                   "\nZestawienie tych osób i kwalifikacji zostanie zapisane w pliku 'wielokrotne-kwalifikacje.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to osoby i kwalifikacje, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nZestawienie tych osób i kwalifikacji zostanie zapisane w pliku 'wielokrotne-kwalifikacje.csv'.\n",
+                   "\nJeżeli chcesz móc sprawdzić, które to osoby i kwalifikacje, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
     if (zapiszProblemy) {
       write.csv2(multiKwal,
                  "wielokrotne-kwalifikacje.csv",
@@ -833,13 +928,43 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   tabeleWejsciowe$W9 <- tabeleWejsciowe$W9 %>%
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
-    mutate(DATA_DYP_ZAW = as.Date(.data$DATA_DYP_ZAW, "%d-%m-%Y"),
+    mutate(DATA_DYP_ZAW = as.Date(.data$DATA_DYP_ZAW,
+                                  tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
            ROK_DYP = as.numeric(format(.data$DATA_DYP_ZAW, "%Y")))
+  w9BrakDaty <- is.na(tabeleWejsciowe$W9$DATA_DYP_ZAW)
+  if (any(w9BrakDaty, na.rm = TRUE)) {
+    warning("\nW danych dot. dyplomów zawodowych (W9) łącznie ",
+            sum(w9BrakDaty, na.rm = TRUE),
+            " rekord(y/ów) ma brak danych w kolumnie DATA_DYP_ZAW!\n",
+            immediate. = TRUE, call. = FALSE)
+  }
+  w9WPRzyszlosci <- year(tabeleWejsciowe$W9$DATA_DYP_ZAW) > rokMonitoringu
+  if (any(w9WPRzyszlosci, na.rm = TRUE)) {
+    warning("\nW danych dot. dyplomów zawodowych (W9) łącznie ",
+            sum(w9WPRzyszlosci, na.rm = TRUE),
+            " rekord(y/ów) ma w kolumnie DATA_DYP_ZAW wartości wskazujące na lata późniejsze niż ",
+            rokMonitoringu, "!\n", immediate. = TRUE, call. = FALSE)
+  }
   tabeleWejsciowe$W11 <- tabeleWejsciowe$W11 %>%
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
-    mutate(DATA_DYP_ZAW = as.Date(.data$DATA_DYP_ZAW, "%d-%m-%Y"),
+    mutate(DATA_DYP_ZAW = as.Date(.data$DATA_DYP_ZAW,
+                                  tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
            ROK_DYP = as.numeric(format(.data$DATA_DYP_ZAW, "%Y")))
+  w11BrakDaty <- is.na(tabeleWejsciowe$W11$DATA_DYP_ZAW)
+  if (any(w11BrakDaty, na.rm = TRUE)) {
+    warning("\nW danych dot. dyplomów zawodowych (W11) łącznie ",
+            sum(w11BrakDaty, na.rm = TRUE),
+            " rekord(y/ów) ma brak danych w kolumnie DATA_DYP_ZAW!\n",
+            immediate. = TRUE, call. = FALSE)
+  }
+  w11WPRzyszlosci <- year(tabeleWejsciowe$W11$DATA_DYP_ZAW) > rokMonitoringu
+  if (any(w11WPRzyszlosci, na.rm = TRUE)) {
+    warning("\nW danych dot. dyplomów zawodowych (W11) łącznie ",
+            sum(w11WPRzyszlosci, na.rm = TRUE),
+            " rekord(y/ów) ma w kolumnie DATA_DYP_ZAW wartości wskazujące na lata późniejsze niż ",
+            rokMonitoringu, "!\n", immediate. = TRUE, call. = FALSE)
+  }
   multiDypZaw <- bind_rows(list(W9 = tabeleWejsciowe$W9,
                                 W11 = tabeleWejsciowe$W11), .id = "table") %>%
     distinct() %>%
@@ -869,13 +994,13 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   }
   if (any(is.na(tabeleWejsciowe$W9$KOD_ZAW)) ||
       any(is.na(tabeleWejsciowe$W11$KOD_ZAW))) {
-    message("\nWykryto osoby, dla których w informacjach o dyplomie (W9 lub W11) występują braki danych (najbardziej prawdopodobna przyczyna to, że są to zawody eksperymentalne).\nRekordy te nie zostaną zapisane do bazy.")
+    message("Wykryto osoby, dla których w informacjach o dyplomie (W9 lub W11) występują braki danych (najbardziej prawdopodobna przyczyna to, że są to zawody eksperymentalne).\nRekordy te nie zostaną zapisane do bazy.\n")
   }
   if (nrow(multiDypZaw) > 0L) {
-    message("\nWykryto osoby, które kilkakrotnie uzyskały dyplom w tym samym zawodzie.",
+    message("Wykryto osoby, które kilkakrotnie uzyskały dyplom w tym samym zawodzie.",
             ifelse(zapiszProblemy,
-                   "\nZestawienie tych osób i zawodów zostanie zapisane w pliku 'wielokrotne-dyplomy.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, które to osoby i zawody, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nZestawienie tych osób i zawodów zostanie zapisane w pliku 'wielokrotne-dyplomy.csv'.\n",
+                   "\nJeżeli chcesz móc sprawdzić, które to osoby i zawody, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
     if (zapiszProblemy) {
       write.csv2(multiDypZaw,
                  "wielokrotne-dyplomy.csv",
@@ -905,12 +1030,16 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     summarise(across(c("swiadectwo", "dyplom"),
                      list(pct = ~round(100*mean(.), 2))),
               .groups = "drop")
-  if (any(diagnostykaKompletnosciEgzZaw$swiadectwo_pct < 60) ||
-      any(diagnostykaKompletnosciEgzZaw$dyplom_pct < 50)) {
-    message("\nDane o certyfikatach lub dyplomach zawodowych (tabele 'W8', 'W9', 'W10' i 'W11') wyglądają na niekompletne.",
+  if (any(diagnostykaKompletnosciEgzZaw$swiadectwo_pct < 35) ||
+      any(diagnostykaKompletnosciEgzZaw$dyplom_pct < 40) ||
+      any(diagnostykaKompletnosciEgzZaw$swiadectwo_pct < 70 &
+          .data$TYP_SZK != "Branżowa szkoła I stopnia") ||
+      any(diagnostykaKompletnosciEgzZaw$dyplom_pct < 60 &
+          .data$TYP_SZK != "Branżowa szkoła I stopnia")) {
+    message("Dane o certyfikatach lub dyplomach zawodowych (tabele 'W8', 'W9', 'W10' i 'W11') wyglądają na niekompletne.",
             ifelse(zapiszProblemy,
-                   "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'certyfikaty-i-dyplomy-kompletnosc.csv'.",
-                   "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o certyfikatach i dyplomach, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`."))
+                   "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'certyfikaty-i-dyplomy-kompletnosc.csv'.\n",
+                   "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o certyfikatach i dyplomach, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
   }
   ## Tabela do diagnozowania kompletności danych z OKE #########################
   if (zapiszProblemy) {
@@ -937,7 +1066,53 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                  .data$TYP_SZK == "Branżowa szkoła I stopnia" & mlodociany ~
                    "Branżowa szkoła I stopnia - młodociani",
                  .data$TYP_SZK == "Branżowa szkoła I stopnia" ~
-                   "Branżowa szkoła I stopnia - inni",
+                   "Branżowa szkoła I stopnia - niemłodociani",
+                 TRUE ~ TYP_SZK)) %>%
+      left_join(bind_rows(tabeleWejsciowe$W8,
+                          tabeleWejsciowe$W10) %>%
+                  select("ID_ABS", "ROK_ABS") %>%
+                  distinct() %>%
+                  mutate(swiadectwo = 1),
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      left_join(bind_rows(tabeleWejsciowe$W9,
+                          tabeleWejsciowe$W11) %>%
+                  select("ID_ABS", "ROK_ABS") %>%
+                  distinct() %>%
+                  mutate(dyplom = 1),
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      mutate(across(c("swiadectwo", "dyplom"),
+                    ~if_else(is.na(.), 0, .)),
+             tylko_swiadectwo = .data$swiadectwo == 1 & .data$dyplom == 0) %>%
+      group_by(.data$wojewodztwo, .data$TYP_SZK, .data$ROK_ABS) %>%
+      summarise(across(c("swiadectwo", "dyplom", "tylko_swiadectwo"), mean),
+                .groups = "drop") %>%
+      select(-"swiadectwo") %>%
+      pivot_wider(names_from = "TYP_SZK",
+                  names_sep = ": ", names_vary = "slowest",
+                  values_from = c("tylko_swiadectwo", "dyplom")) %>%
+      write.csv2("kompletnosc-danych-o-egzaminach.csv",
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
+    tabeleWejsciowe$W2 %>%
+      filter(!is.na(.data$KOD_ZAW)) %>%
+      mutate(wojewodztwo = floor(.data$TERYT_SZK / 100000)) %>%
+      select("ID_ABS", "ROK_ABS", "TYP_SZK", "wojewodztwo") %>%
+      distinct() %>%
+      left_join(tabeleWejsciowe$W16 %>%
+                  semi_join(tabeleWejsciowe$W22 %>%
+                              filter(.data$MLODOC %in% 1) %>%
+                              select(KOD_ZUS = .data$KOD) %>%
+                              mutate(KOD_ZUS = 100 * .data$KOD_ZUS),
+                            by = "KOD_ZUS") %>%
+                  select("ID_ABS", "ROK_ABS") %>%
+                  distinct() %>%
+                  mutate(mlodociany = TRUE),
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      mutate(TYP_SZK =
+               case_when(
+                 .data$TYP_SZK == "Branżowa szkoła I stopnia" & mlodociany ~
+                   "Branżowa szkoła I stopnia - młodociani",
+                 .data$TYP_SZK == "Branżowa szkoła I stopnia" ~
+                   "Branżowa szkoła I stopnia - niemłodociani",
                  TRUE ~ TYP_SZK)) %>%
       left_join(bind_rows(tabeleWejsciowe$W8,
                           tabeleWejsciowe$W10) %>%
@@ -972,10 +1147,11 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
              !(.data$GRUPA_ISCED %in% c(NA_character_, '')),
              !(.data$PODGRUPA_ISCED %in% c(NA_character_, '')),
              !(.data$NAZWA_ISCED %in% c(NA_character_, '')))
-    message("Z tabeli 'W24' zostały usunięte wiersze zawierające braki danych lub puste ciagi znaków w nazwach jednostek klasyfikacji ISCED-F.")
+    message("Z tabeli 'W24' zostały usunięte wiersze zawierające braki danych lub puste ciagi znaków w nazwach jednostek klasyfikacji ISCED-F.\n")
   }
   brakMapowaniaNaISCED <- tabeleWejsciowe$W20a$KOD_ZAW %>%
-    setdiff(tabeleWejsciowe$W24$KOD_ZAW)
+    setdiff(tabeleWejsciowe$W24$KOD_ZAW) %>%
+    sort()
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W24 (mapowanie kodów zawodów na ISCED-F)...")
     dbExecute(con,
@@ -991,9 +1167,9 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     cat(" zakończony.")
   }
   if (length(brakMapowaniaNaISCED) > 0L) {
-    message("\nWykryto następujące kody zawodów, dla których brak jest mapowania na klasyfikację ISCED-F:\n",
+    message("Wykryto następujące kody zawodów, dla których brak jest mapowania na klasyfikację ISCED-F:\n",
             paste(brakMapowaniaNaISCED, collapse = ", "),
-            ".\nRozważ uzupełnienie mapowania w pliku 'W24.csv'.")
+            ".\nRozważ uzupełnienie mapowania w pliku 'W24.csv'.\n")
     if (zapiszProblemy) {
       write.csv2(zawodyBezMapowania,
                  "kody-zawodów-bez-przypisania-do-ISCED-F.csv",
@@ -1029,9 +1205,12 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     filter(!is.na(.data$ID_KIERUNKU_STU)) %>%
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
-    mutate(DATA_OD_STU = as.Date(.data$DATA_OD_STU, "%d-%m-%Y"),
-           DATA_DO_STU = as.Date(.data$DATA_DO_STU, "%d-%m-%Y"),
-           DATA_SKRESL_STU = as.Date(.data$DATA_SKRESL_STU, "%d-%m-%Y")) %>%
+    mutate(DATA_OD_STU = as.Date(.data$DATA_OD_STU,
+                                 tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
+           DATA_DO_STU = as.Date(.data$DATA_DO_STU,
+                                 tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
+           DATA_SKRESL_STU = as.Date(.data$DATA_SKRESL_STU,
+                                     tryFormats = c("%d-%m-%Y", "%d/%m/%Y"))) %>%
     arrange(.data$ID_ABS, .data$ROK_ABS, .data$ID_KIERUNKU_STU,
             .data$DATA_OD_STU, desc(.data$DATA_DO_STU), .data$CZY_UKONCZ_STU,
             desc(.data$DATA_SKRESL_STU)) %>%
@@ -1039,6 +1218,36 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
              .data$DATA_OD_STU) %>%
     slice(1) %>%
     ungroup()
+  w12BrakDatyUkoncz <- is.na(tabeleWejsciowe$W12$DATA_DO_STU) &
+    tabeleWejsciowe$W12$CZY_UKONCZ_STU == 1L
+  if (any(w12BrakDatyUkoncz, na.rm = TRUE)) {
+    warning("\nW danych dot. studiów (W12) łącznie ",
+            sum(w12BrakDatyUkoncz, na.rm = TRUE),
+            " rekord(y/ów) ma brak danych w kolumnie DATA_DO_STU, choć wartość kolumny CZY_UKONCZ_STU (1) wskazuje, że studia zostały ukończone (z sukcesem)!\n",
+            immediate. = TRUE, call. = FALSE)
+  }
+  w12UkonczWPRzyszlosci <- year(tabeleWejsciowe$W12$DATA_DO_STU) > rokMonitoringu
+  if (any(w12UkonczWPRzyszlosci, na.rm = TRUE)) {
+    warning("\nW danych dot. studiów (W12) łącznie ",
+            sum(w12UkonczWPRzyszlosci, na.rm = TRUE),
+            " rekord(y/ów) ma w kolumnie DATA_DO_STU wartości wskazujące na lata późniejsze niż ",
+            rokMonitoringu, "!\n", immediate. = TRUE, call. = FALSE)
+  }
+  w12BrakDatySkresl <- is.na(tabeleWejsciowe$W12$DATA_SKRESL_STU) &
+    tabeleWejsciowe$W12$CZY_UKONCZ_STU == 2L
+  if (any(w12BrakDatySkresl, na.rm = TRUE)) {
+    warning("\nW danych dot. studiów (W12) łącznie ",
+            sum(w12BrakDatySkresl, na.rm = TRUE),
+            " rekord(y/ów) ma brak danych w kolumnie DATA_SKRESL_STU, choć wartość kolumny CZY_UKONCZ_STU (2) wskazuje na skreślenie z listy studentów!\n",
+            immediate. = TRUE, call. = FALSE)
+  }
+  w12SkreslWPRzyszlosci <- year(tabeleWejsciowe$W12$DATA_SKRESL_STU) > rokMonitoringu
+  if (any(w12SkreslWPRzyszlosci, na.rm = TRUE)) {
+    warning("\nW danych dot. studiów (W12) łącznie ",
+            sum(w12SkreslWPRzyszlosci, na.rm = TRUE),
+            " rekord(y/ów) ma w kolumnie DATA_SKRESL_STU wartości wskazujące na lata późniejsze niż ",
+            rokMonitoringu, "!\n", immediate. = TRUE, call. = FALSE)
+  }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W12 (kontynuacja nauki na studiach)...")
     dbExecute(con,
@@ -1070,6 +1279,9 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
              unname())
     cat(" zakończony.")
   }
+  if (nrow(tabeleWejsciowe$W14) == 0L) {
+    message("W pliku 'W14.csv' nie ma informacji o żadnym zgonie.\n")
+  }
   ## W15 (zmiany adresów - z ZUS) ##############################################
   # uwaga, nie ma żadnej gwarancji, że dane ZUS o adresach są spójne
   # i wyczerpujące i generalnie nie należy tego od nich oczekiwać
@@ -1077,8 +1289,10 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     filter(!is.na(.data$ADRES_TYP)) %>%
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
-    mutate(DATA_ADR_OD = as.Date(.data$DATA_ADR_OD, "%d-%m-%Y"),
-           DATA_ADR_DO = as.Date(.data$DATA_ADR_DO, "%d-%m-%Y")) %>%
+    mutate(DATA_ADR_OD = as.Date(.data$DATA_ADR_OD,
+                                 tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
+           DATA_ADR_DO = as.Date(.data$DATA_ADR_DO,
+                                 tryFormats = c("%d-%m-%Y", "%d/%m/%Y"))) %>%
     arrange(.data$ID_ABS, .data$ROK_ABS, .data$ADRES_TYP,
             .data$DATA_ADR_OD, .data$DATA_ADR_OD) %>%
     group_by(.data$ID_ABS, .data$ROK_ABS, .data$ADRES_TYP, .data$DATA_ADR_OD) %>%
@@ -1190,6 +1404,16 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     anti_join(tabeleWejsciowe$W22 %>%
                 rename(KOD_ZUS = "KOD"),
               by = "KOD_ZUS")
+  if (nrow(kodyZusBezMapowania) > 0L) {
+    warning("\nWykryto następujące kody składek ZUS, dla których brak jest mapowania na użyteczne analitycznie kategorie:\n",
+            paste(unique(kodyZusBezMapowania$KOD_ZUS), collapse = ", "),
+            ".\nKonieczne jest uzupełnienie mapowania w pliku 'W22.csv'.",
+            immediate. = TRUE, call. = FALSE)
+    if (zapiszProblemy) {
+      write.csv2(zawodyBezMapowania, "kody-ZUS-niewystępujące-w-W22.csv",
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
+    }
+  }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W16 (miesięczne dane o składkach ZUS)...")
     dbExecute(con,
@@ -1206,15 +1430,6 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
              as.list() %>%
              unname())
     cat(" zakończony.")
-  }
-  if (nrow(kodyZusBezMapowania) > 0L) {
-    message("\nWykryto następujące kody składek ZUS, dla których brak jest mapowania na użyteczne analitycznie kategorie:\n",
-            paste(unique(kodyZusBezMapowania$KOD_ZUS), collapse = ", "),
-            ".\nRozważ uzupełnienie mapowania w pliku 'W22.csv'.")
-    if (zapiszProblemy) {
-      write.csv2(zawodyBezMapowania, "kody-ZUS-niewystępujące-w-W22.csv",
-                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
-    }
   }
   ## W23 (mapowanie kodów przerw w opłacaniu składek ZUS) ######################
   tabeleWejsciowe$W23 <- tabeleWejsciowe$W23 %>%
@@ -1238,14 +1453,26 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     filter(!(is.na(.data$DATA_OD_PRZERWA) | is.na(.data$DATA_DO_PRZERWA))) %>%
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
-    mutate(DATA_OD_PRZERWA = as.Date(.data$DATA_OD_PRZERWA, "%d-%m-%Y"),
-           DATA_DO_PRZERWA = as.Date(.data$DATA_DO_PRZERWA, "%d-%m-%Y")) %>%
+    mutate(DATA_OD_PRZERWA = as.Date(.data$DATA_OD_PRZERWA,
+                                     tryFormats = c("%d-%m-%Y", "%d/%m/%Y")),
+           DATA_DO_PRZERWA = as.Date(.data$DATA_DO_PRZERWA,
+                                     tryFormats = c("%d-%m-%Y", "%d/%m/%Y"))) %>%
     distinct()
   kodyPrzerwBezMapowania <- tabeleWejsciowe$W17 %>%
     select("KOD_PRZERWY") %>%
     anti_join(tabeleWejsciowe$W23 %>%
                 rename(KOD_PRZERWY = "KOD"),
               by = "KOD_PRZERWY")
+  if (nrow(kodyPrzerwBezMapowania) > 0L) {
+    warning("\nWykryto następujące kody przerw w opłacaniu składek ZUS, dla których brak jest mapowania na użyteczne analitycznie kategorie:\n",
+            paste(unique(kodyPrzerwBezMapowania$KOD_PRZERWY), collapse = ", "),
+            ".\nKonieczne jest uzupełnienie mapowania w pliku 'W23.csv'.",
+            immediate. = TRUE, call. = FALSE)
+    if (zapiszProblemy) {
+      write.csv2(kodyPrzerwBezMapowania, "kody-przerw-ZUS-niewystępujące-w-W23.csv",
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
+    }
+  }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabeli W17 (przerwy w opłacaniu składek ZUS)...")
     dbExecute(con,
@@ -1259,16 +1486,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
              unname())
     cat(" zakończony.")
   }
-  if (nrow(kodyPrzerwBezMapowania) > 0L) {
-    message("\nWykryto następujące kody przerw w opłacaniu składek ZUS, dla których brak jest mapowania na użyteczne analitycznie kategorie:\n",
-            paste(unique(kodyPrzerwBezMapowania$KOD_PRZERWY), collapse = ", "),
-            ".\nRozważ uzupełnienie mapowania w pliku 'W23.csv'.")
-    if (zapiszProblemy) {
-      write.csv2(kodyPrzerwBezMapowania, "kody-przerw-ZUS-niewystępujące-w-W23.csv",
-                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
-    }
-  }
-  dbExecute(con, "COMMIT;")
+  if (wczytajDoBazy) dbExecute(con, "COMMIT;")
   cat("\nKoniec: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
   invisible(NULL)
 }

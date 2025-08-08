@@ -80,14 +80,16 @@
 #' czy zostały one ukończone, czy zarzucone).
 #' @return lista ramek danych z przygotowanymi tabelami
 #' @seealso [wczytaj_tabele_posrednie()]
-#' @importFrom dplyr %>% .data across add_count arrange bind_rows case_when
-#'                   collect copy_to distinct everything filter full_join
-#'                   group_by join_by if_else inner_join left_join mutate n
-#'                   order_by pull reframe rename right_join select
+#' @importFrom dplyr %>% .data across add_count any_of arrange bind_rows
+#'                   case_when collect copy_to distinct everything filter
+#'                   full_join group_by join_by if_else inner_join left_join
+#'                   mutate n order_by pull reframe rename right_join select
 #'                   slice_min slice_max starts_with summarise tbl ungroup
 #'                   where
 #' @importFrom lubridate days month year
 #' @importFrom DBI dbConnect dbExecute dbDisconnect
+#' @importFrom LOSYwskazniki dodaj_wskazniki_dyplomy dodaj_wskazniki_prace
+#'                           dodaj_wskazniki_kontynuacje
 #' @export
 przygotuj_tabele_posrednie <- function(
   baza, rokMonitoringu,
@@ -123,6 +125,9 @@ przygotuj_tabele_posrednie <- function(
             length(przygotujP6) == 1L, przygotujP6 %in% c(FALSE, TRUE))
   if (przygotujP4 & !przygotujP1) {
     stop("Tabela P4 nie może zostać przygotowana bez przygotowania tabeli P1.")
+  }
+  if (przygotujP4 & !przygotujP2) {
+    stop("Tabela P4 nie może zostać przygotowana bez przygotowania tabeli P2.")
   }
   if (przygotujP4 & !przygotujP3) {
     stop("Tabela P4 nie może zostać przygotowana bez przygotowania tabeli P3.")
@@ -353,7 +358,6 @@ przygotuj_tabele_posrednie <- function(
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
       collect() %>%
-      filter(!is.na(.data$branza_kont)) %>%
       mutate(okres_od_szk_kont = 12L*year(.data$data_od_szk_kont) + month(.data$data_od_szk_kont),
              okres_do_szk_kont = 12L*year(.data$data_do_szk_kont) + month(.data$data_do_szk_kont)) %>%
       inner_join(okresyP2,
@@ -439,7 +443,7 @@ przygotuj_tabele_posrednie <- function(
                    mutate(data_do_stu = if_else(is.na(.data$data_do_stu),
                                                 imputujDateKoncaStudiow,
                                                 .data$data_do_stu),
-                          typ_szk_kont = "studia",
+                          typ_szk_kont = "Studia",
                           forma_kont = "student") %>%
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
@@ -1047,6 +1051,18 @@ przygotuj_tabele_posrednie <- function(
                     ~. > 1L)) %>%
       select("id_abs", "rok_abs", "duplikat_w_szkole", "duplikat_wiele_szkol",
              everything())
+    # doliczanie wskaźników wykorzystywanych w raportach
+    tabelePosrednie$p4 <- suppressMessages(
+      tabelePosrednie$p4 %>%
+        dodaj_wskazniki_dyplomy(tabelePosrednie$p1, maksMiesOdUkoncz = -3L,
+                                rokMonitoringu = rokMonitoringu) %>%
+        dodaj_wskazniki_kontynuacje(tabelePosrednie$p2,
+                                    miesOdUkoncz = c(6L, 18L, 30L, 42L, 54L)) %>%
+        select(-any_of(c("branza_kont_bsii18", "branza_kont_bsii30",
+                         "branza_kont_bsii42", "branza_kont_bsii54",
+                         "dziedzina_kont30", "dziedzina_kont42",
+                         "dyscyplina_kont30", "dyscyplina_kont42"))) %>%
+        dodaj_wskazniki_prace(tabelePosrednie$p3))
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # P5 (absolwento-miesiąco-pracodawcy) ########################################

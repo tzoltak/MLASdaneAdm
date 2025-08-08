@@ -28,16 +28,17 @@ Dokładnie w ten sam sposób można przeprowadzić aktualizację pakietu do najn
 Pakiet udostępnia obecnie trzy podstawowe funkcje:
 
 1.  `przygotuj_dane_do_w19()` pozwala przygotować dane ze wskaźnikami bezrobocia i przecietnych miesięcznych wynagrodzeń w formie, w jakiej są zwracane przez `MLASZdane::pobierz_dane_bdl` do formatu wymaganego dla tabeli *wejściowej* W19 (przykład użycia dostępny w dokumentacji funkcji: `?przygotuj_dane_do_w19`).
-2.  `wczytaj_tabele_wejsciowe()` odpowiada za zdiagnozowanie spójności zbiorów danych CSV zawierających poszczególne zestawienia wyeksportowane z systemów informatycznych zawierających informacje wykorzystywane w monitoringu (przez gestorów tych systemów) oraz wczytanie ich, po niewielkiej obróbce, do relacyjnej bazy danych,
-3.  `przygotuj_tabele_posrednie()` odpowiada za przygotowanie na podstawie danych wczytanych do relacyjnej bazy danych w poprzednim kroku 4 *tabel pośrednich*, które zawierają zestawienia wskaźników opisujących sytuację absolwentów, które są już bezpośrednio użyteczne analitycznie:
+2.  `przygotuj_dane_do_w26()` pozwala przygotować, na podstawie eksportu z publicznego API WWW RSPO, zestawienie danych wszystkich szkół (i placówek oświatowych) objętych SIO, które występują w danych z danej edycji monitoringu, w formatu wymaganym dla tabeli *wejściowej* W26.
+3.  `wczytaj_tabele_wejsciowe()` odpowiada za zdiagnozowanie spójności zbiorów danych CSV zawierających poszczególne zestawienia wyeksportowane z systemów informatycznych zawierających informacje wykorzystywane w monitoringu (przez gestorów tych systemów) oraz wczytanie ich, po niewielkiej obróbce, do relacyjnej bazy danych,
+4.  `przygotuj_tabele_posrednie()` odpowiada za przygotowanie na podstawie danych wczytanych do relacyjnej bazy danych w poprzednim kroku 4 *tabel pośrednich*, które zawierają zestawienia wskaźników opisujących sytuację absolwentów, które są już bezpośrednio użyteczne analitycznie:
     1) *p1* - zestawienie uzyskanych przez absolwentów certyfikatów i dyplomów (rekord stanowi absolwento-certyfikat/dyplom),
     2) *p2* - zestawienie kontynuacji kształcenia przez absolwentów w wybranych punktach czasu (miesiącach),
     3) *p3* - miesięczne dane o statusach edukacyjnych i zawodowych oraz dane o wynagrodzeniach,
     4) *p4* - zestawienie stałych w czasie cech absolwenta i wskaźników obliczonych na podstawie całego okresu od ukończenia przez niego szkoły,
     5) *p5* - zestawienie charakterystyk opisujących miesiąco-miejsca zatrudnienia, na podstawie którego można obliczać wskaźniki stałości zatrudnienia (od edycji monitoringu 2022),
     6) *p6* - charakterystyki szkół - w tym szkół, w których absolwenci kontynuowali kształcenie - z RSPO,
-4.  `wczytaj_tabele_posrednie()` odpowiada za zapisanie do relacyjnej bazy danych *tabel pośrednich* powstałych w wyniku użycia funkcji `przygotuj_tabele_posrednie()` (sensem takiego zapisu jest głównie walidacja przygotowanych danych, bo nie przyjęło się w praktyce korzystać z tabel *pośrednich* zapisanych do bazy),
-5.  `usun_duplikaty()` pozwala usunąć z danych absolwentów, którzy występują wielokrotnie w ramach tej samej szkoły (historyczny problem ze sposobem ewidencjonowania w SIO uczniów oddziałów wielozawodowych; rzadziej ukończenie kilku różnych zawodów w tej samej spolic.) lub zostali absolwentami kilku różnych szkół w tym samym roku.
+5.  `wczytaj_tabele_posrednie()` odpowiada za zapisanie do relacyjnej bazy danych *tabel pośrednich* powstałych w wyniku użycia funkcji `przygotuj_tabele_posrednie()` (sensem takiego zapisu jest głównie walidacja przygotowanych danych, bo nie przyjęło się w praktyce korzystać z tabel *pośrednich* zapisanych do bazy),
+6.  `usun_duplikaty()` pozwala usunąć z danych absolwentów, którzy występują wielokrotnie w ramach tej samej szkoły (historyczny problem ze sposobem ewidencjonowania w SIO uczniów oddziałów wielozawodowych; rzadziej ukończenie kilku różnych zawodów w tej samej spolic.) lub zostali absolwentami kilku różnych szkół w tym samym roku.
 
 `wczytaj_tabele_wejsciowe()` wymaga wskazania lokalizacji folderu z plikami CSV zawierającymi dane, które mają zostać wczytane do bazy oraz danych niezbędnych do połączenia się z bazą (p. następna sekcja). Funkcja nic nie zwraca, niemniej domyślnie generuje w katalogu roboczym pliki CSV zawierające zestawienia problematycznych danych (uwaga, ich występowanie **nie** uniemożliwia wczytania danych do bazy i ich dalszego przetwarzania! niemniej w ostatecznym rozrachunku rzutuje na trafność i rzetelność wskaźników).
 
@@ -60,7 +61,7 @@ Sposób działania obu funkcji - a szczególnie `przygotuj_tabele_posrednie()` -
 
 ## Współpraca z bazą danych
 
-Aby móc skorzystać z pakietu konieczne jest posiadanie dostępu do odpowiednio przygotowanej relacyjnej bazy danych, która służy jako miejsce przechowywania przygotowywanych przez pakiet zbiorów danych oraz w pewnym zakresie jako backend obliczeniowy przy przygotowywaniu tych zbiorów. Pakiet testowany był we współpracy z bazą PostgreSQL 10.1, niemniej powinien być zdolny do współpracy z dowolną relacyjną bazą danych **dla której istnieje sterownik zgodny z pakietem DBI środowiska R** (p. [strona pakietu DBI](https://dbi.r-dbi.org/)). Skrypt SQL tworzący strukturę bazy danych (pomijając kwestię przyznawania uprawnień) znajduje się w ostatniej sekcji niniejszego dokumentu.
+Aby móc skorzystać z pakietu konieczne jest posiadanie dostępu do odpowiednio przygotowanej relacyjnej bazy danych, która służy jako miejsce przechowywania przygotowywanych przez pakiet zbiorów danych oraz w pewnym zakresie jako backend obliczeniowy przy przygotowywaniu tych zbiorów. Pakiet testowany był we współpracy z bazą PostgreSQL 10.1, 14.0 oraz 16.2, niemniej powinien być zdolny do współpracy z dowolną relacyjną bazą danych **dla której istnieje sterownik zgodny z pakietem DBI środowiska R** (p. [strona pakietu DBI](https://dbi.r-dbi.org/)). Skrypt SQL tworzący strukturę bazy danych (pomijając kwestię przyznawania uprawnień) znajduje się w ostatniej sekcji niniejszego dokumentu.
 
 Dane niezbędne do połączenia z bazą można przekazać funkcjom pakietu na dwa sposoby (tu na przykładzie połączenia z bazą PostgreSQL o nazwie 'monitoring-abs', działającej lokalnie na tym samym komputerze):
 
@@ -97,7 +98,9 @@ CREATE TYPE kat_uczn AS ENUM ('Dzieci lub młodzież', 'Dorośli', 'Bez kategori
 CREATE TYPE specyfika AS ENUM ('brak specyfiki', 'specjalna');
 CREATE TYPE sposob_ewidencjonowania AS ENUM ('Prowadzona', 'Rejestrowana');
 CREATE TYPE miejsce_w_strukt AS ENUM ('samodzielna', 'filia szkoły lub placówki', 'szkoła/placówka wchodząca w skład jednostki złożonej', 'jednostka złożona');
-CREATE TYPE rok_szk AS ENUM ('2010/2011', '2011/2012', '2012/2013', '2013/2014', '2014/2015', '2015/2016', '2016/2017', '2017/2018', '2018/2019', '2019/2020', '2020/2021', '2021/2022', '2022/2023', '2023/2024');
+CREATE TYPE rok_szk AS ENUM ('1980/1981', '1981/1982', '1982/1983', '1983/1984', '1984/1985', '1985/1986', '1986/1987', '1987/1988', '1988/1989', '1989/1990', '1990/1991', '1991/1992', '1992/1993', '1993/1994', '1994/1995', '1995/1996', '1996/1997', '1997/1998', '1998/1999', '1999/2000',
+                             '2000/2001', '2001/2002', '2002/2003', '2003/2004', '2004/2005', '2005/2006', '2006/2007', '2007/2008', '2008/2009', '2009/2010', '2010/2011', '2011/2012', '2012/2013', '2013/2014', '2014/2015', '2015/2016', '2016/2017', '2017/2018', '2018/2019', '2019/2020',
+                             '2020/2021', '2021/2022', '2022/2023', '2023/2024', '2024/2025');
 CREATE TYPE forma_kontynuacji AS ENUM ('uczeń', 'KKZ', 'KUZ', 'student');
 CREATE TYPE status AS ENUM ('Tylko nauka', 'Nauka i praca', 'Tylko praca', 'Bezrobocie', 'Brak danych o aktywności');
 CREATE TYPE typ_szk AS ENUM ('Branżowa szkoła I stopnia', 'Branżowa szkoła II stopnia', 'Technikum', 'Liceum ogólnokształcące', 'Liceum dla dorosłych', 'Szkoła policealna', 'Szkoła specjalna przysposabiająca do pracy');
