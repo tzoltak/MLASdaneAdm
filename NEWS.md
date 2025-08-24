@@ -1,3 +1,9 @@
+# MLASdaneAdm 1.2.1 (24.08.2025)
+
+## Naprawione błędy
+
+-   Poprawiono zamienione miejscami progi dla dyplomów i świadectw w diagnostyce danych o certyfikatach i dyplomach zawodowych we `wczytaj_tabele_wejsciowe()`.
+
 # MLASdaneAdm 1.2.0 (08.08.2025)
 
 ## Ulepszona diagnostyka

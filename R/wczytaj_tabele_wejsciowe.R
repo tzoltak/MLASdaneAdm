@@ -1030,12 +1030,12 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     summarise(across(c("swiadectwo", "dyplom"),
                      list(pct = ~round(100*mean(.), 2))),
               .groups = "drop")
-  if (any(diagnostykaKompletnosciEgzZaw$swiadectwo_pct < 35) ||
-      any(diagnostykaKompletnosciEgzZaw$dyplom_pct < 40) ||
+  if (any(diagnostykaKompletnosciEgzZaw$swiadectwo_pct < 40) ||
+      any(diagnostykaKompletnosciEgzZaw$dyplom_pct < 35) ||
       any(diagnostykaKompletnosciEgzZaw$swiadectwo_pct < 70 &
-          .data$TYP_SZK != "Branżowa szkoła I stopnia") ||
+          diagnostykaKompletnosciEgzZaw$TYP_SZK != "Branżowa szkoła I stopnia") ||
       any(diagnostykaKompletnosciEgzZaw$dyplom_pct < 60 &
-          .data$TYP_SZK != "Branżowa szkoła I stopnia")) {
+          diagnostykaKompletnosciEgzZaw$TYP_SZK != "Branżowa szkoła I stopnia")) {
     message("Dane o certyfikatach lub dyplomach zawodowych (tabele 'W8', 'W9', 'W10' i 'W11') wyglądają na niekompletne.",
             ifelse(zapiszProblemy,
                    "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'certyfikaty-i-dyplomy-kompletnosc.csv'.\n",
