@@ -1,3 +1,13 @@
+# MLASdaneAdm 1.2.2 (14.10.2025)
+
+## Zmiany w tworzeniu tabel *pośrednich*
+
+-   Podniesiono zależność od pakietu *LOSYwskazniki* do wersji 0.1.2, aby w tabeli *pośredniej* P4 dodawany był również wskaźnik opisujący wynagrodzenia w I kwartale roku następującego po roku ukończenia szkoły oraz wskaźniki opisujące wynagrodzenia z umów o pracę od września do grudnia roku ukończenia szkoły w podziale na miesiące kontynuacji i nie kontynuowania nauki.
+
+## Naprawione błędy
+
+-   Poprawiono sposób obliczania zmiennej `kont_mlodoc_prac` przez `przygotuj_tabele_posrednie()`.
+
 # MLASdaneAdm 1.2.1 (24.08.2025)
 
 ## Naprawione błędy

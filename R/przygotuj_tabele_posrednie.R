@@ -808,8 +808,9 @@ przygotuj_tabele_posrednie <- function(
                   select("kod_zus", "mlodoc"),
                 by = "kod_zus") %>%
       group_by(.data$id_abs, .data$rok_abs) %>%
-      filter(any(.data$mlodoc, na.rm = TRUE)) %>%
-      ungroup()
+      mutate(mlodoc_byl = any(.data$mlodoc, na.rm = TRUE)) %>%
+      ungroup() %>%
+      filter(.data$mlodoc_byl)
     tMlodoc <- tMlodoc %>%
       filter(.data$okres > 12L*.data$rok_abs + 6L) %>%
       left_join(tMlodoc %>%
@@ -821,11 +822,12 @@ przygotuj_tabele_posrednie <- function(
       left_join(tbl(con, "w22") %>%
                   select("kod_zus", etat = "etat_ibe"),
                 by = "kod_zus") %>%
-      group_by(.data$id_abs, .data$rok_abs, .data$okres) %>%
-      summarise(mlodoc_byl = any(.data$mlodoc, na.rm = TRUE),
-                mlodoc_ten_sam_platnik = any(.data$platnik_mlodoc, na.rm = TRUE),
-                mlodoc_ten_sam_platnik_etat = any(.data$platnik_mlodoc & .data$etat,
-                                                  na.rm = TRUE),
+      mutate(platnik_mlodoc = ifelse(is.na(.data$platnik_mlodoc),
+                                     FALSE, .data$platnik_mlodoc)) %>%
+      group_by(.data$id_abs, .data$rok_abs, .data$mlodoc_byl, .data$okres) %>%
+      summarise(mlodoc_ten_sam_platnik = any(.data$platnik_mlodoc, na.rm = TRUE),
+                mlodoc_ten_sam_platnik_etat = any(.data$platnik_mlodoc &
+                                                    .data$etat, na.rm = TRUE),
                 .groups = "drop")
     # łączenie
     # materializacje tabel do R - bez niej backend ma tendencje do zawieszania się
