@@ -1,3 +1,18 @@
+# MLASdaneAdm 1.3.0 (03.11.2025)
+
+## Nowe funkcje
+
+-   'przygotuj_tabele_posrednie()` - p. niżej.
+
+## Zmiany w tworzeniu tabel *pośrednich*
+
+-   Wartości zmiennych `wynagrodzenie` i `wynagrodzenie_uop` w tabeli *pośredniej* P3 są przycinane z wykorzystaniem nowo dodanej funkcji `przytnij_wynagrodzenia()`:
+    -   wartości mniejsze niż kwantyl 0.005 i większe niż kwantyl 0.995 zmiennej `wynagrodzenie` zastępowane są wartościami odpowiedniego z tych kwantyli.\;
+    -   wartości kwantyli obliczane są oddzielnie dla każdej z grup powstałych przez skrzyżowanie wartości zmiennych `rok_abs` i `rok`;
+    -   przy obliczaniu kwantyli pomijane są wartości zmiennej `wynagrodzenie` równe 0;
+    -   do przycięcia zmiennej `wynagrodzenie_uop` wykorzystuje się te same progi, obliczone (w danej grupie) w odniesieniu do zmiennej `wynagrodzenie`;
+-   Ww. przycinanie zmiennych `wynagrodzenie` i `wynagrodzenie_uop` wtórnie oddziałuje również na obliczone wartości wskaźników opisujących wynagrodzenia w tabeli *pośredniej* P4.
+
 # MLASdaneAdm 1.2.2 (14.10.2025)
 
 ## Zmiany w tworzeniu tabel *pośrednich*
@@ -6,7 +21,7 @@
 
 ## Naprawione błędy
 
--   Poprawiono sposób obliczania zmiennej `kont_mlodoc_prac` przez `przygotuj_tabele_posrednie()`.
+-   Poprawiono sposób obliczania zmiennej `kont_mlodoc_prac` przez `przygotuj_tabele_posrednie()`._
 
 # MLASdaneAdm 1.2.1 (24.08.2025)
 

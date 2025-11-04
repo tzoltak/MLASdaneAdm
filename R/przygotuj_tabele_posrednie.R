@@ -911,6 +911,10 @@ przygotuj_tabele_posrednie <- function(
       ) %>%
       select(-"rok_skladka", -"mies_skladka", -"mlodoc_byl",
              -"mlodoc_ten_sam_platnik", -"mlodoc_ten_sam_platnik_etat") %>%
+      przytnij_wynagrodzenia("wynagrodzenie", "wynagrodzenie_uop",
+                             zmGrupujace = c("rok_abs", "rok"),
+                             q = c(0.005, 0.995), usun0 = TRUE,
+                             zachowajOryginalne = TRUE) %>%
       select("id_abs", "rok_abs", "rok", "miesiac", "mies_od_ukoncz", "okres",
              "status", "zmarl", "brak_danych_z_zus", "praca", "mlodociany",
              "kont_mlodoc_prac", "bezrobocie":"nauka2",
