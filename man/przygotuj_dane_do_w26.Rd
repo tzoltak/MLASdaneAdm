@@ -7,7 +7,7 @@
 przygotuj_dane_do_w26(
   rokMonitoringu,
   rspo = list.files(pattern = "^rspo_.*\\\\.csv$"),
-  idOrgProw = "id-organow-prowadzacych.csv",
+  idOrgRejestr = "id-organow-rejestrujacych.csv",
   zapiszDoPliku = "W26.csv"
 )
 }
@@ -18,10 +18,11 @@ przygotuj_dane_do_w26(
 zawierającymi dane wyeksportowane z (publicznego API WWW) RSPO (lub pozyskane
 w inny sposób, ale zapisane w tej samej strukturze)}
 
-\item{idOrgProw}{opcjonalnie nazwa pliku zawierającego dane o \emph{idPodmiotu}
-SIO organów prowadzących szkół, wyeksportowane z hurtowni danych SIO; można
-też podać \code{NULL}, aby nie dołączać tych danych (w szczególności, gdy nie są
-dostępne)}
+\item{idOrgRejestr}{opcjonalnie nazwa pliku zawierającego dane o \emph{idPodmiotu}
+SIO organów \strong{rejestrujących} szkoły (JST, na terenie których działają
+poszczególne szkoły lub ministerstwa), wyeksportowane z hurtowni danych SIO;
+można też podać \code{NULL}, aby nie dołączać tych danych (w szczególności, gdy
+nie są dostępne)}
 
 \item{zapiszDoPliku}{opcjonalnie ciąg znaków z nazwą pliku CSV, do którego ma
 zostać zapisane przygotowane zestawienie; aby uniknąć zapisu do pliku, jako

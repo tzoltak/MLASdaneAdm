@@ -1112,7 +1112,10 @@ przygotuj_tabele_posrednie <- function(
     cat("\nTabela P6 przygotowana.")
     tabelePosrednie$p6 <- collect(t26) %>%
       mutate(organ_prowadzacy_teryt = .data$organ_prowadzacy_teryt / 100L,
-             across(where(is.character), as.character)) # pozbywanie się typów zdefiniowanych w bazie
+             across(where(is.character), as.character)) %>% # pozbywanie się typów zdefiniowanych w bazie
+      select("id_szk":"specyfika", starts_with("organ_rejestrujacy_"),
+             "organ_sposob_ewidencjonowania", "rok_szk":"poczta",
+             starts_with("organ_prowadzacy_"), everything())
   }
   # kończenie ##################################################################
   cat("\nKoniec: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")

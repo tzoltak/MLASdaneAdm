@@ -90,22 +90,6 @@ baza <- list(drv = RPostgres::Postgres(),
 # Skrypt tworzący bazę danych
 
 ```{sql}
-CREATE TYPE plec AS ENUM ('K', 'M');
-CREATE TYPE profil_stu AS ENUM ('P', 'O', 'N');
-CREATE TYPE adres_typ AS ENUM ('meld', 'zam', 'koresp');
-CREATE TYPE rodzaj_dyplomu AS ENUM ('tytuł czeladnika', 'matura', 'certyfikat kwalifikacji', 'dyplom zawodowy', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera');
-CREATE TYPE kat_uczn AS ENUM ('Dzieci lub młodzież', 'Dorośli', 'Bez kategorii');
-CREATE TYPE specyfika AS ENUM ('brak specyfiki', 'specjalna');
-CREATE TYPE sposob_ewidencjonowania AS ENUM ('Prowadzona', 'Rejestrowana');
-CREATE TYPE miejsce_w_strukt AS ENUM ('samodzielna', 'filia szkoły lub placówki', 'szkoła/placówka wchodząca w skład jednostki złożonej', 'jednostka złożona');
-CREATE TYPE rok_szk AS ENUM ('1980/1981', '1981/1982', '1982/1983', '1983/1984', '1984/1985', '1985/1986', '1986/1987', '1987/1988', '1988/1989', '1989/1990', '1990/1991', '1991/1992', '1992/1993', '1993/1994', '1994/1995', '1995/1996', '1996/1997', '1997/1998', '1998/1999', '1999/2000',
-                             '2000/2001', '2001/2002', '2002/2003', '2003/2004', '2004/2005', '2005/2006', '2006/2007', '2007/2008', '2008/2009', '2009/2010', '2010/2011', '2011/2012', '2012/2013', '2013/2014', '2014/2015', '2015/2016', '2016/2017', '2017/2018', '2018/2019', '2019/2020',
-                             '2020/2021', '2021/2022', '2022/2023', '2023/2024', '2024/2025');
-CREATE TYPE forma_kontynuacji AS ENUM ('uczeń', 'KKZ', 'KUZ', 'student');
-CREATE TYPE status AS ENUM ('Tylko nauka', 'Nauka i praca', 'Tylko praca', 'Bezrobocie', 'Brak danych o aktywności');
-CREATE TYPE typ_szk AS ENUM ('Branżowa szkoła I stopnia', 'Branżowa szkoła II stopnia', 'Technikum', 'Liceum ogólnokształcące', 'Liceum dla dorosłych', 'Szkoła policealna', 'Szkoła specjalna przysposabiająca do pracy');
-CREATE TYPE typ_szk_mlodoc AS ENUM ('Młodociani w Branżowej szkole I stopnia', 'Niemłodociani w Branżowej szkole I stopnia', 'Branżowa szkoła II stopnia', 'Technikum', 'Liceum ogólnokształcące', 'Liceum dla dorosłych', 'Szkoła policealna', 'Szkoła specjalna przysposabiająca do pracy');
-
 CREATE TABLE w1 (
 	id_abs int,
 	rok_abs int CHECK (rok_abs >= 2019),
@@ -118,17 +102,19 @@ CREATE TABLE typy_szkol (
 CREATE TABLE w26a (
 	id_szk int PRIMARY KEY CHECK (id_szk > 0)
 );
-/* dane szkół, co do których zakładam, że są stałe w czasie */
+/* dane szkół, co do których zakładam, że są stałe w czasie i nie mogą być brakami danych */
 CREATE TABLE w26b (
 	id_szk int REFERENCES w26a (id_szk),
 	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk),
 	publicznosc text NOT NULL,
 	kategoria_uczniow kat_uczn NOT NULL,
 	specyfika specyfika NOT NULL,
-	organ_prowadzacy_id int NOT NULL,
-	organ_prowadzacy_sposob sposob_ewidencjonowania NOT NULL,
+	organ_rejestrujacy_id int NOT NULL,
+	organ_rejestrujacy_typ text NOT NULL CHECK (organ_rejestrujacy_typ != ''),
+	organ_rejestrujacy_nazwa text NOT NULL CHECK (organ_rejestrujacy_nazwa != ''),
+	organ_sposob_ewidencjonowania sposob_ewidencjonowania NOT NULL,
 	organ_prowadzacy_typ text NOT NULL CHECK (organ_prowadzacy_typ != ''),
-	PRIMARY KEY (id_szk, typ_szk, publicznosc, kategoria_uczniow, specyfika, organ_prowadzacy_id, organ_prowadzacy_sposob, organ_prowadzacy_typ)
+	PRIMARY KEY (id_szk, typ_szk, publicznosc, kategoria_uczniow, specyfika, organ_rejestrujacy_id, organ_rejestrujacy_typ, organ_rejestrujacy_nazwa, organ_sposob_ewidencjonowania, organ_prowadzacy_typ)
 );
 /* dane wszystkich szkół występujących w danych z RSPO */
 CREATE TABLE w26 (
@@ -148,6 +134,7 @@ CREATE TABLE w26 (
 	nr_lokalu text,
 	pna text NOT NULL CHECK (pna != ''),
 	poczta text NOT NULL CHECK (poczta != ''),
+	organ_rejestrujacy_teryt int,
 	organ_prowadzacy_nazwa text NOT NULL CHECK (organ_prowadzacy_nazwa != ''),
 	organ_prowadzacy_regon text,
 	organ_prowadzacy_teryt int NOT NULL,
@@ -160,7 +147,7 @@ CREATE TABLE w26 (
 	PRIMARY KEY (id_szk, rok_szk),
 	UNIQUE (id_szk, rok_szk, nazwa_szk, teryt_gmi_szk, wojewodztwo_szk, powiat_szk, gmina_szk,
             simc_miejsc, miejscowosc, rodzaj_miejsc, sym_ul, ulica, nr_budynku, nr_lokalu, pna, poczta,
-            organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
+            organ_rejestrujacy_teryt, organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
             organ_prowadzacy_woj, organ_prowadzacy_pow, organ_prowadzacy_gmi, miejsce_w_strukt,
             jedn_nadrz_id, jedn_nadrz_typ)
 );
@@ -581,9 +568,11 @@ CREATE TABLE p6 (
 	publicznosc text NOT NULL,
 	kategoria_uczniow kat_uczn NOT NULL,
 	specyfika specyfika NOT NULL,
-	organ_prowadzacy_id int NOT NULL,
-	organ_prowadzacy_sposob sposob_ewidencjonowania NOT NULL,
-	organ_prowadzacy_typ text NOT NULL CHECK (organ_prowadzacy_typ != ''),
+	organ_rejestrujacy_id int NOT NULL,
+	organ_rejestrujacy_typ text NOT NULL CHECK (organ_rejestrujacy_typ != ''),
+	organ_rejestrujacy_nazwa text NOT NULL CHECK (organ_rejestrujacy_nazwa != ''),
+	organ_rejestrujacy_teryt int,
+	organ_sposob_ewidencjonowania sposob_ewidencjonowania NOT NULL,
 	rok_szk rok_szk,
 	nazwa_szk text NOT NULL CHECK (nazwa_szk != ''),
 	teryt_gmi_szk int NOT NULL,
@@ -599,6 +588,7 @@ CREATE TABLE p6 (
 	nr_lokalu text,
 	pna text NOT NULL CHECK (pna != ''),
 	poczta text NOT NULL CHECK (poczta != ''),
+	organ_prowadzacy_typ text NOT NULL CHECK (organ_prowadzacy_typ != ''),
 	organ_prowadzacy_nazwa text NOT NULL CHECK (organ_prowadzacy_nazwa != ''),
 	organ_prowadzacy_regon text,
 	organ_prowadzacy_teryt int NOT NULL,
@@ -609,17 +599,19 @@ CREATE TABLE p6 (
 	jedn_nadrz_id int,
 	jedn_nadrz_typ text,
 	PRIMARY KEY (id_szk, rok_szk),
-	FOREIGN KEY (id_szk, typ_szk_rspo, publicznosc, kategoria_uczniow, specyfika, organ_prowadzacy_id, organ_prowadzacy_sposob, organ_prowadzacy_typ)
-	             REFERENCES w26b (id_szk, typ_szk, publicznosc, kategoria_uczniow, specyfika, organ_prowadzacy_id, organ_prowadzacy_sposob,
+	FOREIGN KEY (id_szk, typ_szk_rspo, publicznosc, kategoria_uczniow, specyfika, organ_rejestrujacy_id, organ_rejestrujacy_typ, organ_rejestrujacy_nazwa,
+				 organ_sposob_ewidencjonowania, organ_prowadzacy_typ)
+	             REFERENCES w26b (id_szk, typ_szk, publicznosc, kategoria_uczniow, specyfika, organ_rejestrujacy_id, organ_rejestrujacy_typ,
+								  organ_rejestrujacy_nazwa, organ_sposob_ewidencjonowania,
                    				  organ_prowadzacy_typ) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (id_szk, rok_szk, nazwa_szk, teryt_gmi_szk, wojewodztwo_szk, powiat_szk, gmina_szk,
                  simc_miejsc, miejscowosc, rodzaj_miejsc, sym_ul, ulica, nr_budynku, nr_lokalu, pna, poczta,
-                 organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
+                 organ_rejestrujacy_teryt, organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
                  organ_prowadzacy_woj, organ_prowadzacy_pow, organ_prowadzacy_gmi, miejsce_w_strukt,
                  jedn_nadrz_id, jedn_nadrz_typ)
 				 REFERENCES w26 (id_szk, rok_szk, nazwa_szk, teryt_gmi_szk, wojewodztwo_szk, powiat_szk, gmina_szk,
                                  simc_miejsc, miejscowosc, rodzaj_miejsc, sym_ul, ulica, nr_budynku, nr_lokalu, pna, poczta,
-                                 organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
+                                 organ_rejestrujacy_teryt, organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
                                  organ_prowadzacy_woj, organ_prowadzacy_pow, organ_prowadzacy_gmi, miejsce_w_strukt,
                                  jedn_nadrz_id, jedn_nadrz_typ) ON DELETE CASCADE ON UPDATE CASCADE
 );

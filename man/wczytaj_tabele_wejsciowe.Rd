@@ -10,7 +10,8 @@ wczytaj_tabele_wejsciowe(
   wczytajDoBazy = TRUE,
   zapiszProblemy = TRUE,
   usunAbsWKilkuZaw = TRUE,
-  plikLogu = NULL
+  plikLogu = NULL,
+  nieWczytujDanychZUS = FALSE
 )
 }
 \arguments{
@@ -37,6 +38,12 @@ usuwani.)}
 
 \item{plikLogu}{opcjonalnie nazwa pliku, do którego ma być zapisany log
 wywołania funkcji}
+
+\item{nieWczytujDanychZUS}{opcjonalnie wartość logiczna pozwalająca pominąć
+wczytywanie do bazy danych z ZUS (i tym samym wydatnie skrócić proces) -
+przydatna, jeśli proces ma na celu tylko wprowadzenie jakichś poprawek do
+już wcześniej przygotowanych tabel \emph{pośrednich} w zakresie danych innych,
+niż te z ZUS}
 }
 \value{
 \code{NULL}

@@ -20,6 +20,11 @@
 #' usuwani.)
 #' @param plikLogu opcjonalnie nazwa pliku, do którego ma być zapisany log
 #' wywołania funkcji
+#' @param nieWczytujDanychZUS opcjonalnie wartość logiczna pozwalająca pominąć
+#' wczytywanie do bazy danych z ZUS (i tym samym wydatnie skrócić proces) -
+#' przydatna, jeśli proces ma na celu tylko wprowadzenie jakichś poprawek do
+#' już wcześniej przygotowanych tabel *pośrednich* w zakresie danych innych,
+#' niż te z ZUS
 #' @details Dane wejściowe powinny obejmować **tylko jeden rok prowadzenia
 #' monitoringu**, ale mogą obejmować **kilka różnych okresów od ukończenia
 #' szkoły**.
@@ -37,12 +42,15 @@
 #' @export
 wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                                     zapiszProblemy = TRUE,
-                                    usunAbsWKilkuZaw = TRUE, plikLogu = NULL) {
+                                    usunAbsWKilkuZaw = TRUE, plikLogu = NULL,
+                                    nieWczytujDanychZUS = FALSE) {
   stopifnot(length(wczytajDoBazy) == 1L, wczytajDoBazy %in% c(FALSE, TRUE),
             is.list(baza) | inherits(baza, "DBIConnection") | wczytajDoBazy == FALSE,
             dir.exists(folder),
             length(zapiszProblemy) == 1L, zapiszProblemy %in% c(FALSE, TRUE),
-            length(usunAbsWKilkuZaw) == 1L, usunAbsWKilkuZaw %in% c(FALSE, TRUE))
+            length(usunAbsWKilkuZaw) == 1L, usunAbsWKilkuZaw %in% c(FALSE, TRUE),
+            length(nieWczytujDanychZUS) == 1L,
+            nieWczytujDanychZUS %in% c(FALSE, TRUE))
   if (!is.null(plikLogu)) {
     stopifnot(is.character(plikLogu), length(plikLogu) == 1L,
               !is.na(plikLogu),
@@ -243,7 +251,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   # sprawdzanie kompletności W26 (dane szkół z RSPO) ###########################
   brakiW26 <- tabeleWejsciowe$W26 %>%
     select(-c("SYM_UL", "ULICA", "NR_BUDYNKU", "NR_LOKALU",
-              "ORGAN_PROWADZACY_ID", "ORGAN_PROWADZACY_REGON",
+              "ORGAN_REJESTRUJACY_TERYT", "ORGAN_PROWADZACY_REGON",
               "JEDN_NADRZ_ID", "JEDN_NADRZ_TYP")) %>%
     sapply(function(x) return(anyNA(x) | any(x == '')))
   if (any(brakiW26)) {
@@ -253,8 +261,9 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   }
   duplikatyW26b <- tabeleWejsciowe$W26 %>%
     select("ID_SZK", "TYP_SZK", "PUBLICZNOSC", "KATEGORIA_UCZNIOW", "SPECYFIKA",
-           "ORGAN_PROWADZACY_ID", "ORGAN_PROWADZACY_SPOSOB",
-           "ORGAN_PROWADZACY_TYP") %>%
+           "ORGAN_REJESTRUJACY_ID", "ORGAN_REJESTRUJACY_TYP",
+           "ORGAN_REJESTRUJACY_NAZWA", "ORGAN_REJESTRUJACY_TERYT",
+           "ORGAN_SPOSOB_EWIDENCJONOWANIA", "ORGAN_REJESTRUJACY_TYP") %>%
     distinct() %>%
     add_count(.data$ID_SZK) %>%
     filter(.data$n > 1L)
@@ -402,13 +411,17 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     dbExecute(con,
               "INSERT INTO W26b (id_szk, typ_szk, publicznosc,
                                  kategoria_uczniow, specyfika,
-                                 organ_prowadzacy_id, organ_prowadzacy_sposob,
+                                 organ_rejestrujacy_id, organ_rejestrujacy_typ,
+                                 organ_rejestrujacy_nazwa,
+                                 organ_sposob_ewidencjonowania,
                                  organ_prowadzacy_typ)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
               params = tabeleWejsciowe$W26 %>%
                 select("ID_SZK", "TYP_SZK", "PUBLICZNOSC",
                        "KATEGORIA_UCZNIOW", "SPECYFIKA",
-                       "ORGAN_PROWADZACY_ID", "ORGAN_PROWADZACY_SPOSOB",
+                       "ORGAN_REJESTRUJACY_ID", "ORGAN_REJESTRUJACY_TYP",
+                       "ORGAN_REJESTRUJACY_NAZWA",
+                       "ORGAN_SPOSOB_EWIDENCJONOWANIA",
                        "ORGAN_PROWADZACY_TYP") %>%
                 distinct() %>%
                 as.list() %>%
@@ -419,18 +432,20 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                                 gmina_szk, simc_miejsc, miejscowosc,
                                 rodzaj_miejsc, sym_ul, ulica, nr_budynku,
                                 nr_lokalu, pna, poczta,
+                                organ_rejestrujacy_teryt,
                                 organ_prowadzacy_nazwa, organ_prowadzacy_regon,
                                 organ_prowadzacy_teryt, organ_prowadzacy_woj,
                                 organ_prowadzacy_pow, organ_prowadzacy_gmi,
                                 miejsce_w_strukt, jedn_nadrz_id, jedn_nadrz_typ)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                       $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)",
+                       $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+                       $25, $26)",
               params = tabeleWejsciowe$W26 %>%
                 select("ID_SZK", "ROK_SZK", "NAZWA_SZK",
                        "TERYT_GMI_SZK", "WOJEWODZTWO_SZK", "POWIAT_SZK",
                        "GMINA_SZK", "SIMC_MIEJSC", "MIEJSCOWOSC",
                        "RODZAJ_MIEJSC", "SYM_UL", "ULICA", "NR_BUDYNKU",
-                       "NR_LOKALU", "PNA", "POCZTA",
+                       "NR_LOKALU", "PNA", "POCZTA", "ORGAN_REJESTRUJACY_TERYT",
                        "ORGAN_PROWADZACY_NAZWA", "ORGAN_PROWADZACY_REGON",
                        "ORGAN_PROWADZACY_TERYT", "ORGAN_PROWADZACY_WOJ",
                        "ORGAN_PROWADZACY_POW", "ORGAN_PROWADZACY_GMI",
@@ -1268,7 +1283,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     semi_join(tabeleWejsciowe$W1,
               by = c("ID_ABS", "ROK_ABS")) %>%
     filter(!is.na(.data$ROK_ZGONU))
-  if (wczytajDoBazy) {
+  if (wczytajDoBazy & !nieWczytujDanychZUS) {
     cat("\nZapis do bazy tabeli W14 (ew. zgony - z danych ZUS)...")
     dbExecute(con,
               "INSERT INTO w14 (id_abs, rok_abs, rok_zgonu, mies_zgonu)
@@ -1298,7 +1313,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     group_by(.data$ID_ABS, .data$ROK_ABS, .data$ADRES_TYP, .data$DATA_ADR_OD) %>%
     mutate(lp = seq_len(n())) %>%
     ungroup()
-  if (wczytajDoBazy) {
+  if (wczytajDoBazy & !nieWczytujDanychZUS) {
     cat("\nZapis do bazy tabeli W15 (dane adresowe z ZUS)...")
     dbExecute(con,
               "INSERT INTO w15 (id_abs, rok_abs, adres_typ, data_adr_od, lp,
@@ -1323,7 +1338,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     anti_join(tabeleWejsciowe$W18, by = "ID_PLATNIKA")
   tabeleWejsciowe$W18 <- tabeleWejsciowe$W18 %>%
     bind_rows(brakujacyPlatnicy)
-  if (wczytajDoBazy) {
+  if (wczytajDoBazy & !nieWczytujDanychZUS) {
     cat("\nZapis do bazy tabeli W18 (dane o pracodawcach z ZUS)...")
     dbExecute(con,
               "INSERT INTO w18 (id_platnika, pkd, rok_wyrej, mies_wyrej)
@@ -1414,7 +1429,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                  row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
-  if (wczytajDoBazy) {
+  if (wczytajDoBazy & !nieWczytujDanychZUS) {
     cat("\nZapis do bazy tabeli W16 (miesięczne dane o składkach ZUS)...")
     dbExecute(con,
               "INSERT INTO w16 (id_abs, rok_abs, rok_skladka, mies_skladka,
@@ -1473,7 +1488,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                  row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
-  if (wczytajDoBazy) {
+  if (wczytajDoBazy & !nieWczytujDanychZUS) {
     cat("\nZapis do bazy tabeli W17 (przerwy w opłacaniu składek ZUS)...")
     dbExecute(con,
               "INSERT INTO w17 (id_abs, rok_abs, id_platnika, data_od_przerwa,

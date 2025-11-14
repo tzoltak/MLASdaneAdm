@@ -9,10 +9,11 @@
 #' @param rspo opcjonalnie wektor ciągów znaków z nazwami plików CSV
 #' zawierającymi dane wyeksportowane z (publicznego API WWW) RSPO (lub pozyskane
 #' w inny sposób, ale zapisane w tej samej strukturze)
-#' @param idOrgProw opcjonalnie nazwa pliku zawierającego dane o *idPodmiotu*
-#' SIO organów prowadzących szkół, wyeksportowane z hurtowni danych SIO; można
-#' też podać `NULL`, aby nie dołączać tych danych (w szczególności, gdy nie są
-#' dostępne)
+#' @param idOrgRejestr opcjonalnie nazwa pliku zawierającego dane o *idPodmiotu*
+#' SIO organów **rejestrujących** szkoły (JST, na terenie których działają
+#' poszczególne szkoły lub ministerstwa), wyeksportowane z hurtowni danych SIO;
+#' można też podać `NULL`, aby nie dołączać tych danych (w szczególności, gdy
+#' nie są dostępne)
 #' @param zapiszDoPliku opcjonalnie ciąg znaków z nazwą pliku CSV, do którego ma
 #' zostać zapisane przygotowane zestawienie; aby uniknąć zapisu do pliku, jako
 #' wartość argumentu należy podać `NULL`
@@ -21,19 +22,19 @@
 #' jest jako *ukryty*
 #' @importFrom stats setNames
 #' @importFrom utils read.csv2 write.csv2
-#' @importFrom dplyr %>% .data arrange bind_rows distinct everything inner_join
-#'                  left_join mutate select rename_with
+#' @importFrom dplyr %>% .data arrange bind_rows case_match distinct everything
+#'                  inner_join left_join mutate select rename_with
 #' @export
 przygotuj_dane_do_w26 <- function(rokMonitoringu,
                                   rspo = list.files(pattern = "^rspo_.*\\.csv$"),
-                                  idOrgProw = "id-organow-prowadzacych.csv",
+                                  idOrgRejestr = "id-organow-rejestrujacych.csv",
                                   zapiszDoPliku = "W26.csv") {
   stopifnot(is.numeric(rokMonitoringu), length(rokMonitoringu) == 1L,
             !is.na(rokMonitoringu), rokMonitoringu >= 2021L,
             as.integer(rokMonitoringu) == rokMonitoringu,
             is.character(rspo), length(rspo) > 0L, !anyNA(rspo), all(rspo != ""),
             all(file.exists(rspo)), all(file.access(rspo, mode = 4) == 0L),
-            is.null(idOrgProw) | is.character(idOrgProw),
+            is.null(idOrgRejestr) | is.character(idOrgRejestr),
             is.null(zapiszDoPliku) | is.character(zapiszDoPliku),
             "W katalogu roboczym nie ma pliku 'W2.csv'." =
               file.exists("W2.csv"),
@@ -51,9 +52,9 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
               file.exists("W5.csv"),
             "Nie można uzyskać dostępu do pliku 'W5.csv'" =
               file.access("W5.csv", mode = 4) == 0L)
-  if (!is.null(idOrgProw)) {
-    stopifnot(length(idOrgProw) == 1L, !is.na(idOrgProw), idOrgProw != "",
-              file.exists(idOrgProw), file.access(idOrgProw, mode = 4) == 0L)
+  if (!is.null(idOrgRejestr)) {
+    stopifnot(length(idOrgRejestr) == 1L, !is.na(idOrgRejestr), idOrgRejestr != "",
+              file.exists(idOrgRejestr), file.access(idOrgRejestr, mode = 4) == 0L)
   }
   if (!is.null(zapiszDoPliku)) {
     stopifnot(length(zapiszDoPliku) == 1L, !anyNA(zapiszDoPliku))
@@ -116,19 +117,26 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
   stopifnot(all(c("ID_SZK_KONT", "DATA_OD_KUZ", "DATA_DO_KUZ") %in% names(w5)))
   message("...zakończone.")
 
-  if (!is.null(idOrgProw)) {
+  if (!is.null(idOrgRejestr)) {
     message("Wczytywanie danych o idPodmiotu SIO organów prowadzących...")
-    stopifnot(length(idOrgProw) == 1L, !is.na(idOrgProw), idOrgProw != "")
-    idOrgProwDane <- read.csv2(idOrgProw)
-    names(idOrgProwDane) <- toupper(names(idOrgProwDane))
-    kolumnyIdOrgProw <- c("ID_SZK", "ORGAN_PROWADZACY_SPOSOB",
-                          "ORGAN_PROWADZACY_ID")
-    brakujaceKolumny <- setdiff(kolumnyIdOrgProw, names(idOrgProwDane))
+    stopifnot(length(idOrgRejestr) == 1L, !is.na(idOrgRejestr), idOrgRejestr != "")
+    idOrgRejestrDane <- read.csv2(idOrgRejestr)
+    names(idOrgRejestrDane) <- toupper(names(idOrgRejestrDane))
+    kolumnyidOrgRejestr <- c("ID_SZK", "ORGAN_REJESTRUJACY_ID",
+                             "ORGAN_REJESTRUJACY_TYP",
+                             "ORGAN_REJESTRUJACY_NAZWA",
+                             "ORGAN_REJESTRUJACY_TERYT",
+                             "ORGAN_SPOSOB_EWIDENCJONOWANIA")
+    brakujaceKolumny <- setdiff(kolumnyidOrgRejestr, names(idOrgRejestrDane))
     if (length(brakujaceKolumny) > 0L) {
-      stop("W pliku '", idOrgProw, "' brakuje wymaganych kolumn: '",
+      stop("W pliku '", idOrgRejestr, "' brakuje wymaganych kolumn: '",
            paste(brakujaceKolumny, collapse = "', '"), "'.")
     }
-    rspo <- left_join(rspo, idOrgProwDane[, kolumnyIdOrgProw], by = "ID_SZK")
+    idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT <-
+      as.integer(idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT) *
+      10^case_match(nchar(idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT),
+                    c(6L, 7L) ~ 0, c(3L, 4L) ~ 3, c(1L, 2L) ~ 5)
+    rspo <- left_join(rspo, idOrgRejestrDane[, kolumnyidOrgRejestr], by = "ID_SZK")
     message("...zakończone.")
   }
 

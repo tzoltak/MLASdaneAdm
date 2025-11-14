@@ -1,8 +1,29 @@
+# MLASdaneAdm 1.4.0 (14.11.2025)
+
+## Zmiany w w strukturze tabel *wejściowych*
+
+-   W pliku 'W26.csv' oczekuje się wystąpienia nowych kolumn: `ORGAN_REJESTRUJACY_ID` (zamiast `ORGAN_PROWADZACY_ID`), `ORGAN_REJESTRUJACY_TYP`, `ORGAN_REJESTRUJACY_NAZWA`, `ORGAN_REJESTRUJACY_TERYT` i `ORGAN_SPOSOB_EWIDENCJONOWANIA` (zamiast `ORGAN_PRWADZACY_SPOSOB`).
+    -   Odpowiednio zmodyfikowano działanie funkcji `przygotuj_dane_do_w26()`, która domyślnie oczekuje teraz innej nazwy pliku zawierającego dane wyeksportowane z hurtowni SIO: 'id-organow-rejestrujacych.csv' (zamiast 'id-organow-prowadzacych.csv').
+    -   Odpowiednio zmodyfikowano funkcje `tabele_wejsciowe()`.
+
+## Zmiany w tworzeniu tabel *pośrednich*
+
+-   W tabeli *pośredniej* p6 pojawiły się nowe kolumny, analogicznie do zmian w pliku wejściowym 'w26.csv':
+    -  `organ_rejestrujacy_id` - zmiana nazwy z `organ_prowadzacy_id`, opisuje *idPodmiotu* SIO organu rejestrującego (co robiła też wcześniej, ale teraz zgodnie ze swoją nazwą);
+	  -  `organ_rejestrujacy_typ` - typ organu rejestrującego (może to być JST lub ministerstwo);
+	  -  `organ_rejestrujacy_nazwa` - nazwa organu rejestrującego;
+	  -  `organ_rejestrujacy_teryt` - TERYT organu rejestrującego (6/7-mio cyfrowy, może być brakiem danych) - w zależności od typu organu rejestrującego będzie to TERYT gminy (z cyfrą kodującą rodzaj gminy), powiatu albo województwa, a w przypadku ministerstw brak danych;
+	  -  `organ_sposob_ewidencjonowania` - zmiana nazwy z `organ_prowadzacy_sposob`, opisuje, czy organ prowadzący jest tożsamy z rejestrującym ("Prowadzona"), czy też nie ("Rejestrowana").
+
+## Usprawnienia
+
+-    `wczytaj_tabele_wejsciowe()` otrzymała nowy argument `nieWczytujDanychZUS` (domyślnie `FALSE`), który pozwala pominąć wczytywanie danych z ZUS do bazy i tym samym wydatnie skrócić ten proces, jeśli wiadomo, że nie będą one potrzebne, bo proces przeprowadzany jest w celu poprawienia czegoś (niedotyczącego danych z ZUS) w już wcześniej przygotowanych tabelach *pośrednich*.
+
 # MLASdaneAdm 1.3.0 (03.11.2025)
 
 ## Nowe funkcje
 
--   'przygotuj_tabele_posrednie()` - p. niżej.
+-   'przytnij_wynagrodzenia()` - p. niżej.
 
 ## Zmiany w tworzeniu tabel *pośrednich*
 
