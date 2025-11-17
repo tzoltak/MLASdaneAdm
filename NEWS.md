@@ -1,3 +1,9 @@
+# MLASdaneAdm 1.4.1 (17.11.2025)
+
+## Naprawione błędy
+
+-   Podniesiono zależność od pakietu *LOSYwskazniki* do wersji 0.1.3, w związku z czym prawidłowo określana jest liczba kontynuujących naukę na KKZ i KUZ we wskaźnikach dot. kontynuacji nauki w p4 (zamiast błędnego przypisywania zer).
+
 # MLASdaneAdm 1.4.0 (14.11.2025)
 
 ## Zmiany w w strukturze tabel *wejściowych*
