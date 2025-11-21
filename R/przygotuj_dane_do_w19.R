@@ -32,8 +32,8 @@
 #'                       zapiszDoPliku = "W19.csv")
 #' }
 #' @importFrom utils write.table
-#' @importFrom dplyr %>% arrange bind_rows case_match filter group_by lag mutate
-#'                   reframe rename select semi_join ungroup
+#' @importFrom dplyr %>% .data arrange bind_rows case_match filter group_by lag
+#'                   mutate reframe rename select semi_join ungroup
 #' @importFrom tidyr pivot_wider
 #' @export
 przygotuj_dane_do_w19 <- function(bezrobocie, wynagrodzenia,

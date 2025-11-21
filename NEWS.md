@@ -1,3 +1,14 @@
+# MLASdaneAdm 1.5.0 (21.11.2025)
+
+## Naprawione błędy
+
+-   Podniesiono zależność od pakietu *LOSYwskazniki* do wersji 0.2.0, w związku z czym kolumny `sr_wynagr_uop_nauka_r0_wrzgru` i `sr_wynagr_uop_bez_nauki_r0_wrzgru` tworzone w tabeli *pośredniej* P4 opisują **względne** wynagrodzenia (odniesione do średnich miesięcznych wynagrodzeń w danym roku w powiecie zamieszkania absolwenta) i są w końcu użyteczne do obliczania wskaźników na potrzeby raportów szkolnych.
+
+# Nowe funkcje
+
+-   `uzupelnij_wzgledne_wynagrodzenia()` pozwala uzupełnić braki danych w kolumn `sr_wynagr_uop_nauka_r0_wrzgru` i `sr_wynagr_uop_bez_nauki_r0_wrzgru` w tabeli *pośredniej* P4 na podstawie zaktualizowanego (od czasu tworzenia tabel *pośrednich*) pliku *wejściowego* W19.csv.
+    -   Możliwe jest też użycie tej funkcji do uzupełnienia wartości kolumn `powiat_sr_wynagrodzenie` i `powiat_bezrobocie` w tabeli *pośredniej* P3.
+
 # MLASdaneAdm 1.4.1 (17.11.2025)
 
 ## Naprawione błędy
