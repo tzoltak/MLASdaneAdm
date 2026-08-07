@@ -9,8 +9,7 @@
 #' @param rokMonitoringu rok (edycja) prowadzenie monitoringu (liczba)
 #' @returns ramka danych zawierająca kolumny `ID_SZK` i `ROK_SZK`
 #' @seealso [wczytaj_tabele_wejsciowe()], [przygotuj_dane_do_w26()]
-#' @importFrom dplyr %>% .data across bind_rows distinct group_by mutate reframe
-#'                   rename ungroup
+#' @importFrom dplyr %>% .data across bind_rows distinct group_by mutate reframe rename ungroup
 zidentyfikuj_szkolo_lata_w_danych <- function(w2, w3, w4, w5, rokMonitoringu) {
   bind_rows(w2 %>%
               select("ID_SZK", ROK_SZK = "ROK_ABS") %>%

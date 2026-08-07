@@ -8,12 +8,18 @@
 #' @param rokMonitoringu rok (edycja) prowadzenie monitoringu (liczba)
 #' @param rspo opcjonalnie wektor ciągów znaków z nazwami plików CSV
 #' zawierającymi dane wyeksportowane z (publicznego API WWW) RSPO (lub pozyskane
-#' w inny sposób, ale zapisane w tej samej strukturze)
+#' w inny sposób, ale zapisane w tej samej strukturze); **ignorowany, jeśli
+#' podano wartość argumentu `rspoHurtownia`** (inną niż `NULL`)
 #' @param idOrgRejestr opcjonalnie nazwa pliku zawierającego dane o *idPodmiotu*
 #' SIO organów **rejestrujących** szkoły (JST, na terenie których działają
 #' poszczególne szkoły lub ministerstwa), wyeksportowane z hurtowni danych SIO;
 #' można też podać `NULL`, aby nie dołączać tych danych (w szczególności, gdy
-#' nie są dostępne)
+#' nie są dostępne); **ignorowany, jeśli podano wartość argumentu
+#' `rspoHurtownia`** (inną niż `NULL`)
+#' @param rspoHurtownia opcjonalnie nazwa pliku zawierającego dane szkół
+#' wyeksportowane z hurtowni SIO; można też podać `NULL`, aby skorzystać
+#' z danych we wcześniej wykorzystywanych formatach, opisanych argumentami
+#' `rspo` i `idOrgRejestr`
 #' @param zapiszDoPliku opcjonalnie ciąg znaków z nazwą pliku CSV, do którego ma
 #' zostać zapisane przygotowane zestawienie; aby uniknąć zapisu do pliku, jako
 #' wartość argumentu należy podać `NULL`
@@ -22,19 +28,19 @@
 #' jest jako *ukryty*
 #' @importFrom stats setNames
 #' @importFrom utils read.csv2 write.csv2
-#' @importFrom dplyr %>% .data arrange bind_rows case_match distinct everything
-#'                  inner_join left_join mutate select rename_with
+#' @importFrom dplyr %>% .data arrange bind_rows case_match distinct everything inner_join left_join mutate select rename_with
 #' @export
 przygotuj_dane_do_w26 <- function(rokMonitoringu,
                                   rspo = list.files(pattern = "^rspo_.*\\.csv$"),
                                   idOrgRejestr = "id-organow-rejestrujacych.csv",
+                                  rspoHurtownia = "dane-szkół-z-hurtowni-SIO.csv",
                                   zapiszDoPliku = "W26.csv") {
   stopifnot(is.numeric(rokMonitoringu), length(rokMonitoringu) == 1L,
             !is.na(rokMonitoringu), rokMonitoringu >= 2021L,
             as.integer(rokMonitoringu) == rokMonitoringu,
-            is.character(rspo), length(rspo) > 0L, !anyNA(rspo), all(rspo != ""),
-            all(file.exists(rspo)), all(file.access(rspo, mode = 4) == 0L),
+            is.null(rspo) | is.character(rspo),
             is.null(idOrgRejestr) | is.character(idOrgRejestr),
+            is.null(rspoHurtownia) | is.character(rspoHurtownia),
             is.null(zapiszDoPliku) | is.character(zapiszDoPliku),
             "W katalogu roboczym nie ma pliku 'W2.csv'." =
               file.exists("W2.csv"),
@@ -52,13 +58,35 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
               file.exists("W5.csv"),
             "Nie można uzyskać dostępu do pliku 'W5.csv'" =
               file.access("W5.csv", mode = 4) == 0L)
-  if (!is.null(idOrgRejestr)) {
-    stopifnot(length(idOrgRejestr) == 1L, !is.na(idOrgRejestr), idOrgRejestr != "",
-              file.exists(idOrgRejestr), file.access(idOrgRejestr, mode = 4) == 0L)
+  if (!is.null(rspoHurtownia)) {
+    stopifnot(length(rspoHurtownia) == 1L, !is.na(rspoHurtownia), rspoHurtownia != "",
+              file.exists(rspoHurtownia), file.access(rspoHurtownia, mode = 4) == 0L)
+  } else {
+    stopifnot(is.character(rspo),
+              "Nie podano plików zawierających dane z RSPO do przetworzenia." = length(rspo) > 0L,
+              !anyNA(rspo), all(rspo != ""),
+              all(file.exists(rspo)), all(file.access(rspo, mode = 4) == 0L))
+    if (!is.null(idOrgRejestr)) {
+      stopifnot(length(idOrgRejestr) == 1L, !is.na(idOrgRejestr), idOrgRejestr != "",
+                file.exists(idOrgRejestr), file.access(idOrgRejestr, mode = 4) == 0L)
+    }
   }
   if (!is.null(zapiszDoPliku)) {
     stopifnot(length(zapiszDoPliku) == 1L, !anyNA(zapiszDoPliku))
   }
+
+  message("Wczytywanie plików 'W2.csv', 'W3.csv', 'W4.csv' i 'W5.csv'...")
+  w2 <- read.csv2("W2.csv")
+  stopifnot(all(c("ID_SZK", "ROK_ABS") %in% names(w2)))
+  w3 <- read.csv2("W3.csv")
+  stopifnot(all(c("ID_SZK_KONT", "DATA_OD_SZK_KONT",
+                  "DATA_DO_SZK_KONT") %in% names(w3)))
+  w4 <- read.csv2("W4.csv")
+  stopifnot(all(c("ID_SZK_KONT", "DATA_OD_KKZ", "DATA_DO_KKZ") %in% names(w4)))
+  w5 <- read.csv2("W5.csv")
+  stopifnot(all(c("ID_SZK_KONT", "DATA_OD_KUZ", "DATA_DO_KUZ") %in% names(w5)))
+  message("...zakończone.")
+
   kolumnyRSPO <- c(ID_SZK = "NUMER.RSPO", TYP_SZK = "TYP", NAZWA_SZK = "NAZWA",
                    TERYT_GMI_SZK = "KOD.TERYTORIALNY.GMINA",
                    WOJEWODZTWO_SZK = "WOJEWÓDZTWO",
@@ -82,62 +110,63 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
                    MIEJSCE_W_STRUKT = "MIEJSCE.W.STRUKTURZE",
                    JEDN_NADRZ_ID = "RSPO.PODMIOTU.NADRZĘDNEGO",
                    JEDN_NADRZ_TYP = "TYP.PODMIOTU.NADRZĘDNEGO")
+  kolumnyidOrgRejestr <- c("ID_SZK", "ORGAN_REJESTRUJACY_ID",
+                           "ORGAN_REJESTRUJACY_TYP",
+                           "ORGAN_REJESTRUJACY_NAZWA",
+                           "ORGAN_REJESTRUJACY_TERYT",
+                           "ORGAN_SPOSOB_EWIDENCJONOWANIA")
 
-  rspo <- setNames(lapply(rspo, read.csv2), rspo)
-  czyProblem <- FALSE
-  message("Rok monitoringu: ", rokMonitoringu)
-  message("Wczytywanie plików z danymi z RSPO:")
-  for (p in seq_along(rspo)) {
-    names(rspo[[p]]) <- toupper(names(rspo[[p]]))
-    brakujaceKolumny <- setdiff(kolumnyRSPO, names(rspo[[p]]))
+  if (!is.null(rspoHurtownia)) {
+    message("Wczytywanie pliku z danymi z RSPO...")
+    rspo <- read.csv2(rspoHurtownia)
+    brakujaceKolumny <- setdiff(c("ROK_SZK", names(kolumnyRSPO),
+                                  kolumnyidOrgRejestr),
+                                names(rspo))
     if (length(brakujaceKolumny) > 0L) {
-      czyProblem <- czyProblem | TRUE
-    }
-    message("- plik '", names(rspo)[p], "' ",
-            ifelse(length(brakujaceKolumny) == 0L,
-                   "ma wszystkie wymagane kolumny;",
-                   paste0("brakuje kolumn (z dokładnością do wielkości liter): '",
-                          paste(brakujaceKolumny, collapse = "', '"), "';")))
-  }
-  message("...zakończone.")
-  stopifnot("We wczytywanym pliku/plikach brakuje wymaganych kolumn." = !czyProblem)
-  rspo <- bind_rows(rspo)
-  rspo <- rspo[, kolumnyRSPO]
-  names(rspo) <- names(kolumnyRSPO)
-
-  message("Wczytywanie plików 'W2.csv', 'W3.csv', 'W4.csv' i 'W5.csv'...")
-  w2 <- read.csv2("W2.csv")
-  stopifnot(all(c("ID_SZK", "ROK_ABS") %in% names(w2)))
-  w3 <- read.csv2("W3.csv")
-  stopifnot(all(c("ID_SZK_KONT", "DATA_OD_SZK_KONT",
-                  "DATA_DO_SZK_KONT") %in% names(w3)))
-  w4 <- read.csv2("W4.csv")
-  stopifnot(all(c("ID_SZK_KONT", "DATA_OD_KKZ", "DATA_DO_KKZ") %in% names(w4)))
-  w5 <- read.csv2("W5.csv")
-  stopifnot(all(c("ID_SZK_KONT", "DATA_OD_KUZ", "DATA_DO_KUZ") %in% names(w5)))
-  message("...zakończone.")
-
-  if (!is.null(idOrgRejestr)) {
-    message("Wczytywanie danych o idPodmiotu SIO organów prowadzących...")
-    stopifnot(length(idOrgRejestr) == 1L, !is.na(idOrgRejestr), idOrgRejestr != "")
-    idOrgRejestrDane <- read.csv2(idOrgRejestr)
-    names(idOrgRejestrDane) <- toupper(names(idOrgRejestrDane))
-    kolumnyidOrgRejestr <- c("ID_SZK", "ORGAN_REJESTRUJACY_ID",
-                             "ORGAN_REJESTRUJACY_TYP",
-                             "ORGAN_REJESTRUJACY_NAZWA",
-                             "ORGAN_REJESTRUJACY_TERYT",
-                             "ORGAN_SPOSOB_EWIDENCJONOWANIA")
-    brakujaceKolumny <- setdiff(kolumnyidOrgRejestr, names(idOrgRejestrDane))
-    if (length(brakujaceKolumny) > 0L) {
-      stop("W pliku '", idOrgRejestr, "' brakuje wymaganych kolumn: '",
+      stop("W pliku '", rspoHurtownia, "' brakuje wymaganych kolumn: '",
            paste(brakujaceKolumny, collapse = "', '"), "'.")
     }
-    idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT <-
-      as.integer(idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT) *
-      10^case_match(nchar(idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT),
-                    c(6L, 7L) ~ 0, c(3L, 4L) ~ 3, c(1L, 2L) ~ 5)
-    rspo <- left_join(rspo, idOrgRejestrDane[, kolumnyidOrgRejestr], by = "ID_SZK")
     message("...zakończone.")
+    rspo <- rspo[, unique(c("ROK_SZK", names(kolumnyRSPO), kolumnyidOrgRejestr))]
+  } else{
+    rspo <- setNames(lapply(rspo, read.csv2), rspo)
+    czyProblem <- FALSE
+    message("Rok monitoringu: ", rokMonitoringu)
+    message("Wczytywanie plików z danymi z RSPO:")
+    for (p in seq_along(rspo)) {
+      names(rspo[[p]]) <- toupper(names(rspo[[p]]))
+      brakujaceKolumny <- setdiff(kolumnyRSPO, names(rspo[[p]]))
+      if (length(brakujaceKolumny) > 0L) {
+        czyProblem <- czyProblem | TRUE
+      }
+      message("- plik '", names(rspo)[p], "' ",
+              ifelse(length(brakujaceKolumny) == 0L,
+                     "ma wszystkie wymagane kolumny;",
+                     paste0("brakuje kolumn (z dokładnością do wielkości liter): '",
+                            paste(brakujaceKolumny, collapse = "', '"), "';")))
+    }
+    message("...zakończone.")
+    stopifnot("We wczytywanym pliku/plikach brakuje wymaganych kolumn." = !czyProblem)
+    rspo <- bind_rows(rspo)
+    rspo <- rspo[, kolumnyRSPO]
+    names(rspo) <- names(kolumnyRSPO)
+
+    if (!is.null(idOrgRejestr)) {
+      message("Wczytywanie danych o idPodmiotu SIO organów prowadzących...")
+      idOrgRejestrDane <- read.csv2(idOrgRejestr)
+      names(idOrgRejestrDane) <- toupper(names(idOrgRejestrDane))
+      brakujaceKolumny <- setdiff(kolumnyidOrgRejestr, names(idOrgRejestrDane))
+      if (length(brakujaceKolumny) > 0L) {
+        stop("W pliku '", idOrgRejestr, "' brakuje wymaganych kolumn: '",
+             paste(brakujaceKolumny, collapse = "', '"), "'.")
+      }
+      idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT <-
+        as.integer(idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT) *
+        10^case_match(nchar(idOrgRejestrDane$ORGAN_REJESTRUJACY_TERYT),
+                      c(6L, 7L) ~ 0, c(3L, 4L) ~ 3, c(1L, 2L) ~ 5)
+      rspo <- left_join(rspo, idOrgRejestrDane[, kolumnyidOrgRejestr], by = "ID_SZK")
+      message("...zakończone.")
+    }
   }
 
   message("Sprawdzanie kompletności danych...")
@@ -154,16 +183,30 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
   szkolyWDanych <- zidentyfikuj_szkolo_lata_w_danych(w2, w3, w4, w5,
                                                      rokMonitoringu)
   message("...zakończone.")
-  brakujaceSzkoly <- setdiff(szkolyWDanych$ID_SZK, rspo$ID_SZK)
-  if (length(brakujaceSzkoly) > 0L) {
-    stop("W danych z RSPO brakuje szkoł o następujących id: ",
-         paste(brakujaceSzkoly, collapse = ", "), ".")
+  brakujaceSzkoly <- szkolyWDanych %>%
+    anti_join(rspo,
+              by = intersect(names(szkolyWDanych), names(rspo)))
+  if (nrow(brakujaceSzkoly) > 0L) {
+    if (ncol(brakujaceSzkoly) == 1L) {
+      stop("W danych z RSPO brakuje szkół o następujących id: ",
+           paste(brakujaceSzkoly$ID_SZK, collapse = ", "), ".")
+    } else {
+      stop("W danych z RSPO brakuje następujących szkoło-lat:\n",
+           paste(apply(brakujaceSzkoly, 1,
+                       function(x) paste0(names(x), ": ", x, collapse = ", "))
+                 , collapse = ";\n"), ".")
+    }
   }
   rspo <- rspo %>%
     inner_join(szkolyWDanych,
-               by = "ID_SZK") %>%
+               by = intersect(c("ID_SZK", "ROK_SZK"), names(rspo))) %>%
     select("ID_SZK", "ROK_SZK", everything()) %>%
     arrange(.data$ID_SZK, .data$ROK_SZK)
+  stopifnot("Zduplikowane kombinacje wartości (ID_SZK, ROK_SZK)." =
+              0L == (rspo %>%
+                       count(.data$ID_SZK, .data$ROK_SZK) %>%
+                       filter(n > 1) %>%
+                       nrow()))
 
   if (!is.null(zapiszDoPliku)) {
     zapiszDoPliku <- paste0(sub("\\.csv$", "", zapiszDoPliku), ".csv")

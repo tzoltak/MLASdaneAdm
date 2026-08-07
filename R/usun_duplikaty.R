@@ -20,8 +20,7 @@
 #' zwrócona **niezmodyfikowana**.
 #' @return lista ramek danych lub ramka danych - w zależności od tego, jaki
 #' obiekt został przekazany argumentem `x`
-#' @importFrom dplyr %>% anti_join count distinct filter full_join mutate
-#'                   n_distinct select semi_join
+#' @importFrom dplyr %>% anti_join count distinct filter full_join mutate n_distinct select semi_join
 #' @export
 usun_duplikaty <- function(x, p4 = NULL, duplikatWSzkole = TRUE,
                            duplikatWieleSzkol = TRUE) {

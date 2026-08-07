@@ -4,7 +4,7 @@
 \alias{okres2rokszk}
 \title{Zamiana "okresu" na rok szkolny}
 \usage{
-okres2rokszk(x, tekst = TRUE, warnIfNAs = TRUE)
+okres2rokszk(x, tekst = TRUE, warnIfNAs = TRUE, akademicki = FALSE)
 }
 \arguments{
 \item{x}{liczba całkowita (co do zasady wartość kolumny \code{okres})}
@@ -15,6 +15,10 @@ opisem roku szkolnego (np. "2023/2024"), czy liczba całkowita wskazującą
 
 \item{warnIfNAs}{wartość logiczna - czy generować ostrzeżenie, jeśli argument
 \code{x} zawiera braki danych?}
+
+\item{akademicki}{wartość logiczna - czy przypisanie ma zostać dokonane
+w odniesieniu do lat akademickich (rozpoczynających się 1 października),
+zamiast w odniesieniu do lat szkolnych (rozpoczynających się 1 września)?}
 }
 \value{
 wektor ciągów znaków lub wektor liczb całkowitych
@@ -31,5 +35,5 @@ okres2rokszk(c(24248, 24249), tekst = FALSE)
 }
 \seealso{
 \code{\link[=data2rokszk]{data2rokszk()}}, \code{\link[=okres2rokmiesiac]{okres2rokmiesiac()}}, \code{\link[=okres2data]{okres2data()}},
-\code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}}
+\code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}}, \code{\link[=data2okres]{data2okres()}}
 }

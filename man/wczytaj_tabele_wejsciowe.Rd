@@ -11,7 +11,8 @@ wczytaj_tabele_wejsciowe(
   zapiszProblemy = TRUE,
   usunAbsWKilkuZaw = TRUE,
   plikLogu = NULL,
-  nieWczytujDanychZUS = FALSE
+  nieWczytujDanychZUS = FALSE,
+  wersja = c("2021", "2026")
 )
 }
 \arguments{
@@ -44,6 +45,10 @@ wczytywanie do bazy danych z ZUS (i tym samym wydatnie skrócić proces) -
 przydatna, jeśli proces ma na celu tylko wprowadzenie jakichś poprawek do
 już wcześniej przygotowanych tabel \emph{pośrednich} w zakresie danych innych,
 niż te z ZUS}
+
+\item{wersja}{ciąg znaków wskazujący na wersję struktury tabel wejściowych -
+możliwe wartości to "2021" (dane z edycji 2021-2025) lub "2026" (dane
+z edycji 2026 i nowszych)}
 }
 \value{
 \code{NULL}

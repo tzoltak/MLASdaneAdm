@@ -27,6 +27,6 @@ rokmiesiac2okres(c(2023, 2024), c(6, 12))
 rokmiesiac2okres(c(2023, 2024), 12)
 }
 \seealso{
-\code{\link[=okres2rokmiesiac]{okres2rokmiesiac()}}, \code{\link[=okres2rokszk]{okres2rokszk()}}, \code{\link[=okres2data]{okres2data()}},
-\code{\link[=data2rokszk]{data2rokszk()}}
+\code{\link[=data2okres]{data2okres()}}, \code{\link[=okres2rokmiesiac]{okres2rokmiesiac()}}, \code{\link[=okres2rokszk]{okres2rokszk()}},
+\code{\link[=okres2data]{okres2data()}}, \code{\link[=data2rokszk]{data2rokszk()}}
 }

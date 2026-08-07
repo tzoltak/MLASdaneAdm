@@ -1,10 +1,14 @@
 #' @title Struktura tabel wejsciowych
 #' @description Funkcja zwraca listę zawierającą nazwy kolumn, które oczekiwane
 #' są w poszczególnych plikach z tabelami wejściowymi.
+#' @param wersja ciąg znaków wskazujący na wersję struktury tabel wejściowych -
+#' możliwe wartości to "2021" (dane z edycji 2021-2025) lub "2026" (dane
+#' z edycji 2026 i nowszych)
 #' @returns lista wektorów tekstowych
 #' @export
-tabele_wejsciowe <- function() {
-  return(list(
+tabele_wejsciowe <- function(wersja = c("2021", "2026")) {
+  wersja <- match.arg(wersja, several.ok = FALSE)
+  nazwy <- list(
     STYPSZK = c("TYP_SZK", "TYP_SZK_NAZWA"),
     W1 = c("ID_ABS", "ROK_ABS"),
     W2 = c("ID_ABS", "ROK_ABS", "ROK_UR", "PLEC", "ID_SZK", "KOD_ZAW", "NAZWA_ZAW", "TYP_SZK", "TERYT_SZK"),
@@ -36,5 +40,23 @@ tabele_wejsciowe <- function() {
     W24 = c("KOD_ZAW", "KOD_ISCED", "GRUPA_ISCED", "PODGRUPA_ISCED", "NAZWA_ISCED"), # dodane w 2023 r.
     W25 = c("TERYT_POW", "POWIAT", "WOJEWODZTWO", "NTS", "MAKROREGION", "REGION", "PODREGION"), # dodane w 2023 r.
     W26 = c("ID_SZK", "ROK_SZK", "TYP_SZK", "NAZWA_SZK", "TERYT_GMI_SZK", "WOJEWODZTWO_SZK", "POWIAT_SZK", "GMINA_SZK", "SIMC_MIEJSC", "MIEJSCOWOSC", "RODZAJ_MIEJSC", "SYM_UL", "ULICA", "NR_BUDYNKU", "NR_LOKALU", "PNA", "POCZTA", "PUBLICZNOSC", "KATEGORIA_UCZNIOW", "SPECYFIKA", "ORGAN_REJESTRUJACY_ID", "ORGAN_REJESTRUJACY_TYP", "ORGAN_REJESTRUJACY_NAZWA", "ORGAN_REJESTRUJACY_TERYT", "ORGAN_PROWADZACY_TYP", "ORGAN_PROWADZACY_NAZWA", "ORGAN_PROWADZACY_REGON", "ORGAN_PROWADZACY_TERYT", "ORGAN_PROWADZACY_WOJ", "ORGAN_PROWADZACY_POW", "ORGAN_PROWADZACY_GMI", "MIEJSCE_W_STRUKT", "JEDN_NADRZ_ID", "JEDN_NADRZ_TYP") # dodane w 2025 r.
-  ))
+  )
+  if (wersja == "2026") {
+    nazwy$W1 <- c(nazwy$W1, "KRAJ_POCHODZENIA")
+    nazwy$W2 <- c(nazwy$W2, "FORMA_KSZTALC", "NAUKA_POZA_SZKOLA")
+    nazwy$W3 <- c(nazwy$W3, "NAZWA_ZAW_KONT")
+    nazwy$W8 <- c(setdiff(nazwy$W8, c("ROK_KWAL")),
+                  "ROK_EGZ_ZAW", "SESJA_EGZ_ZAW", "DOSTOSOWANIE_EGZ_ZAW", "WYNIK_PISEMN_EGZ_ZAW", "WYNIK_PRAKT_EGZ_ZAW")
+    nazwy$W10 <- c(setdiff(nazwy$W10, c("ROK_KWAL")),
+                  "ROK_EGZ_ZAW", "SESJA_EGZ_ZAW", "DOSTOSOWANIE_EGZ_ZAW", "WYNIK_PISEMN_EGZ_ZAW", "WYNIK_PRAKT_EGZ_ZAW")
+    nazwy$W12 <- c(nazwy$W12, "UCZELNIA_STU", "TERYT_STU", "TERYT_STU_GMI", "FORMA_STU", "ID_PODMIOTU")
+    nazwy$W16 <- c(nazwy$W16, "DATA_OD_UBEZP", "DATA_DO_UBEZP", "WYMIAR_ZATR_LICZNIK", "WYMIAR_ZATRUDNIENIA_MIANOWNIK", "KOD_ZAW_PRACA")
+    # nazwy$W27 <- c("ID_ABS", "ROK_ABS", "ROK_E8", "PRZEDMIOT_E8", "ARKUSZ_E8", "DOSTOS_WAR_E8", "LAUREAT_E8", "WYNIK_E8")
+    # nazwy$W28 <- c("ID_ABS", "ROK_ABS", "ROK_MATURA", "PRZEDMIOT_MATURA", "POZIOM_MATURA", "PIERWSZE_PRZYST_MATURA", "ARKUSZ_MATURA", "DOSTOS_WAR_MATURA", "LAUREAT_MATURA", "WYNIK_MATURA")
+    nazwy$W30 <- c("ID_UCZELNI", "ID_PODMIOTU", "DATA_OD", "DATA_DO", "NAZWA_PODMIOTU", "TERYT_PODMIOTU", "TERYT_GMI_PODMIOTU")
+    nazwy$W31 <- c("ID_ABS", "ROK_ABS", "ORZECZENIE_DATA_OD", "ORZECZENIE_DATA_DO", "NIEPELNOSPRAWNOSC", "NIEPELNOSPRAWNOSC_SPRZ2", "NIEPELNOSPRAWNOSC_SPRZ3", "NIEPELNOSPRAWNOSC_SPRZ4", "NIEPELNOSPRAWNOSC_SPRZ5", "NIEPELNOSPRAWNOSC_SPRZ6", "NIEPELNOSPRAWNOSC_SPRZ17", "NIEPELNOSPRAWNOSC_SPRZ18", "NIEPELNOSPRAWNOSC_SPRZ20", "NIEPELNOSPRAWNOSC_SPRZ21")
+    nazwy$W32 <- c("ID_ABS", "ROK_ABS", "DATA_OD_UBEZP", "DATA_DO_UBEZP", "ROLA_UBEZP")
+    nazwy$W33 <- c("ID_ABS", "ROK_ABS", "DATA_OD_SWIADCZ", "DATA_DO_SWIADCZ", "RODZAJ_SWIADCZ")
+  }
+  return(nazwy)
 }

@@ -4,7 +4,12 @@
 \alias{tabele_wejsciowe}
 \title{Struktura tabel wejsciowych}
 \usage{
-tabele_wejsciowe()
+tabele_wejsciowe(wersja = c("2021", "2026"))
+}
+\arguments{
+\item{wersja}{ciąg znaków wskazujący na wersję struktury tabel wejściowych -
+możliwe wartości to "2021" (dane z edycji 2021-2025) lub "2026" (dane
+z edycji 2026 i nowszych)}
 }
 \value{
 lista wektorów tekstowych

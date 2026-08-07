@@ -32,8 +32,7 @@
 #' zmienne i ew. te same zmienne nieprzekształcone, ale z dodanym do nazwy
 #' przyrostkiem "o_ryg"
 #' @importFrom stats quantile
-#' @importFrom dplyr %>% across all_of case_when group_by left_join mutate n
-#'             select summarise ungroup
+#' @importFrom dplyr %>% across all_of case_when group_by left_join mutate n select summarise ungroup
 #' @export
 przytnij_wynagrodzenia <- function(dane, zmKryterium,
                                    zmZastosuj = vector(mode = "character",

@@ -5,10 +5,14 @@
 \alias{porownaj_liczbe_wierszy_w_tabelach_wejsciowych}
 \title{Heurystyczna kontrola kompletnosci danych wejsciowych}
 \usage{
-porownaj_liczbe_wierszy_w_tabelach_wejsciowych(...)
+porownaj_liczbe_wierszy_w_tabelach_wejsciowych(..., wersja = c("2021", "2026"))
 }
 \arguments{
 \item{...}{ciągi znaków ze ścieżkami do innych, porównywanych katalogów}
+
+\item{wersja}{ciąg znaków wskazujący na wersję struktury tabel wejściowych -
+możliwe wartości to "2021" (dane z edycji 2021-2025) lub "2026" (dane
+z edycji 2026 i nowszych)}
 }
 \value{
 Ramka danych z wierszami reprezentującymi poszczególne tabele
@@ -21,7 +25,7 @@ z tabelami \emph{wejściowymi} w podanych katalogach.
 \examples{
 \dontrun{
   w <- porownaj_liczbe_wierszy_w_tabelach_wejsciowych("./",
-                                                      "../"dane 2024)
+                                                      "../dane 2024")
   print(w, n = Inf)
 }
 }

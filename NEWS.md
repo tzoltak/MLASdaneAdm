@@ -1,10 +1,71 @@
+# MLASdaneAdm 2.0.0 (??.??.2026)
+
+## Do zrobienia
+
+-   Zaimplementować wczytywanie W27 i W28 (jak już zostaną nam wystawione).
+-   Dopisać *imputowanie* wymiaru etatu na pełen funkcjonariuszom państwowym (na podstawie kodów skłądek) - na etapie przed wczytaniem W16 do bazy.
+-   Rozbudować strukturę W30 tak, aby obejmowała również dane, które można ściągnąć z otwartego API RAD-on (https://radon.nauka.gov.pl/dane/instytucje-systemu-szkolnictwa-wyzszego-i-nauki i https://radon.nauka.gov.pl/dane/filie-instytucji-systemu-szkolnictwa-wyzszego-i-nauki) i przygotować funkcję, która będzie twworzyć odpowiedni plik wejściowy na podstawie SUCZELNIA i zrzutów z tegoż API.
+    -   Chyba najlepiej byłoby analogicznie do W26 ustrukturyzować W30 jako opisującą sytuacje po kolejnych latach akademickich.
+-   Zaimplementować zmiany w tworzeniu tabel *pośrednich*.
+    -   Przy tworzeniu P1 trzeba odfiltrowywać wiersze w810 opisujące przystąpienia, które nie zakończyły się uzyskaniem certyfikatu, plus uwzględnić zmianę nazwy kolumny opisującej rok.
+    -   Przy tworzeniu P2trzeba:
+        -   uwzględnić, że od edycji 2026 mamy bezpośrednio podaną w W3 nazwę zawodu kontynuacji;
+        -   dodać nowe informacje o studiach: formę, lokalizację uczelni, ale także nazwę uczelni/filii i kierunku studiów, bo i na te ostatnie było zgłaszane zapotrzebowanie (w szczególności w kontekście raportów szkolnych).
+    -   Przy tworzeniu P3 trzeba:
+        -   **z głębokim namysłem** zaimplementować na nowo obliczanie miesięcznych wynagrodzeń, uwzględniając informacje o długości trwania danej umowy w ramach miesiąca i - gdy jest dostępna - o wymiarze etatu;
+        -   dodać kolumny opisującą wymiar etatu i długość zatrudnienia w ramach miesiąca - **wymaga głębszego namysłu**, jak je konstruować w sytuacjach, gdy ktoś ma wiele umów w miesiącu;
+        -   uwzględnić dane z KRUS (W32, W33) przy tworzeniu zmiennej PRACA oraz dodać kolumnę opisującą ROLA_UBEZP;
+        -   dodać informację o powiecie kontynuacji nauki - do zastanowienia się, czy oddzielnie w odniesieniu do szkół z SIO i uczelni, czy tylko jedna kolumna i jakie reguły wychodzenia na jedną wartość, gdyby ktoś okazał się uczyś w kilku powiatach jednocześnie;
+        -   w kolumnie opisujące studiowanie dodać informację o formie studiów.
+    -   Nowa tabela (tabele? bo może matura oddzielnie ze względu na bardzo złożoną strukturę) pośrednia na wyniki procentowe egzaminów.
+    -   Nowa tabela (tabele?) zawierająca informacje o niepełnosprawnościach i dostosowaniach na egzaminach;
+        -   być może do usunięcia w przyszłości, jeśli w toku analiz wyjdziemy na sposób tworzenia jakichś satysfakcjonujących nas wskaźników opisujących ogólnie absolwenta, i jako takich dających się dołączyć do P4.
+
+## Zmiany w w strukturze tabel *wejściowych*
+
+-   Dostosowanie funkcji `wczytaj_tabele_wejsciowe()` do rozszerzonego nowelizacją ustawy zakresu danych przetwarzanych w ramach monitoringu:
+    -   Nowe kolumny w plikach wejściowych:
+        -   `KRAJ_POCHODZENIA` w *W1.csv*,
+        -   `FORMA_KSZTALC` i `NAUKA_POZA_SZKOLA` w *W2.csv*,
+        -   `NAZWA_ZAW_KONT` w  *W3.csv*,
+        -   `ROK_EGZ_ZAW` (zamiast `ROK_KWAL`), `SESJA_EGZ_ZAW`, `DOSTOSOWANIE_EGZ_ZAW`, `WYNIK_PISEMN_EGZ_ZAW` i `WYNIK_PRAKT_EGZ_ZAW` w *w8.csv* i *w10.csv*,
+        -   `FORMA_STU` i `ID_PODMIOTU` w *W12.csv*,
+        -   `DATA_OD_UBEZP`, `DATA_DO_UBEZP`, `WYMIAR_ZATR_LICZNIK`, `WYMIAR_ZATRUDNIENIA_MIANOWNIK` i `KOD_ZAW_PRACA` w *W16.csv*,
+    -   Nowe pliki z tabelami wejściowymi:
+        -   *W27.csv* - wyniki procentowe egzaminu ósmoklasisty - **jeszcze czeka na implementację**,
+        -   *W28.csv* - wyniki procentowe matury - **jeszcze czeka na implementację**,
+        -   *W30.csv* - słownik uczelni z POL-on,
+        -   *W31.csv* - orzeczenia o niepełnosprawności z SIO,
+        -   *W32.csv* - składki do KRUS,
+        -   *W33.csv* - świadczenia z KRUS.
+    -   Istotne zmiany w tworzonej bazie danych wykraczające poza te wynikające ze wspomnianego wyżej rozszerzenia zakresu danych:
+        -   Nowa tabela *w810d* do przechowywania informacji o dostosowaniach na egzaminach zawodowych;
+        -   Zmiany w tabeli *w16*:
+            -   Nowa kolumna `LP` ujednoznaczniająca rekordy o tych samych kombinacja wartośći (`ID_ABS`, `ROK_ABS`, `ID_PLATNIKA`, `ROK_SKLADKA_MIES_SKLADKA`, `KOD_ZUS`), gdyż ze względu na informacje o wymiarze etatu i okresie przepracowanym w ramach miesiąca odstąpiono od prostej agregacji w ramach takich kombinacji wartości;
+            -   Nowa kolumna `UDZIAL_DNI_ZATR_MIES`, obliczana na podstawie kolumn `DATA_OD_UBEZP`, `DATA_DO_UBEZP` z pliku *W16.csv* i umieszczana w bazie zamiast nich,
+            -   Nowa kolumna `WYMIAR_ZATR`, obliczana na podstawie kolumn `WYMIAR_ZATR_LICZNIK`, `WYMIAR_ZATRUDNIENIA_MIANOWNIK` z pliku *W16.csv* i umieszczana w bazie zamiast nich.
+-   Zasadniczą część kodu odpowiedzialnego za zapis tabel *wejściowych* do bazy zamknieto w (nieeksportowanej) funkcji `przygotuj_argumenty_do_zapisania_tabeli_wejsciowej()`, co umożliwia łatwe wariantowanie pomiędzy edycjami wcześniejszymi, a tymi począwszy od 2026.
+-   Nowy argument `wersja`, pozwalający wskazać, w jakiej strukturze są dane, które mają być przetwarzane, dodano do funkcji:
+    -   `wczytaj_tabele_wejsciowe()`,
+    -   `porownaj_liczbe_wierszy_w_tabelach_wejsciowych()`,
+    -   `tabele_wejsciowe()`
+-   Funkcja `przygotuj_dane_do_w26()` uzyskała możliwość wykorzystania danych o szkołach eksportowanych w całości z hurtowni SIO, dzięki czemu można mieć w W26 dostęp do prawdziwych (a nie tylko sztucznie multiplikowanych; inna sprawa, że one się w czasie specjalnie nie zmieniają) danych o nazwach, lokalizacjach itp. szkół.
+
+## Naprawione błędy
+
+-   `data2rokszk()` poprawnie stosuje argument `max`; poprawiono też dokumentację tego argumentu (wskazując, że nadpisuje on wszystkie wartości wskazujące na późniejsze lata szkolne, a nie tylko te *nieskończone*);
+    -   W efekcie `zidentyfikuj_szkolo_lata_w_danych()` uwzględnia, że ktoś mógł rozpocząć naukę w szkole (w której kontynuuje naukę) również w roku, w którym prowadzona jest dana edycja monitoringu (o ile zrobił to w semestrze letnim);
+-   `wczytaj_tabele_wejsciowe()` potrafi sobie radzić z nieliczbowymi kodami zawodów;
+-   `porownaj_liczbe_wierszy_w_tabelach_wejsciowych()` przechwytuje argumenty korzystając z `list(...)` zamiast `as.list(...)`;
+-   Uzupełniono kilka miejsc z brakującym maskowanie `.data$` w wywołaniach funkcji pakietu *dplyr*.
+
 # MLASdaneAdm 1.5.0 (21.11.2025)
 
 ## Naprawione błędy
 
 -   Podniesiono zależność od pakietu *LOSYwskazniki* do wersji 0.2.0, w związku z czym kolumny `sr_wynagr_uop_nauka_r0_wrzgru` i `sr_wynagr_uop_bez_nauki_r0_wrzgru` tworzone w tabeli *pośredniej* P4 opisują **względne** wynagrodzenia (odniesione do średnich miesięcznych wynagrodzeń w danym roku w powiecie zamieszkania absolwenta) i są w końcu użyteczne do obliczania wskaźników na potrzeby raportów szkolnych.
 
-# Nowe funkcje
+## Nowe funkcje
 
 -   `uzupelnij_wzgledne_wynagrodzenia()` pozwala uzupełnić braki danych w kolumn `sr_wynagr_uop_nauka_r0_wrzgru` i `sr_wynagr_uop_bez_nauki_r0_wrzgru` w tabeli *pośredniej* P4 na podstawie zaktualizowanego (od czasu tworzenia tabel *pośrednich*) pliku *wejściowego* W19.csv.
     -   Możliwe jest też użycie tej funkcji do uzupełnienia wartości kolumn `powiat_sr_wynagrodzenie` i `powiat_bezrobocie` w tabeli *pośredniej* P3.

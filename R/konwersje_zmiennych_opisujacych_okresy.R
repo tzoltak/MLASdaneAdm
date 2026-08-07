@@ -7,8 +7,8 @@
 #' @param warnIfNAs wartość logiczna - czy generować ostrzeżenie, jeśli argument
 #' `x` zawiera braki danych?
 #' @returns wektor liczb całkowitych
-#' @seealso [okres2rokmiesiac()], [okres2rokszk()], [okres2data()],
-#' [data2rokszk()]
+#' @seealso [data2okres()], [okres2rokmiesiac()], [okres2rokszk()],
+#' [okres2data()], [data2rokszk()]
 #' @examples
 #' rokmiesiac2okres(c(2023, 2024), c(6, 12))
 #' rokmiesiac2okres(c(2023, 2024), 12)
@@ -17,11 +17,29 @@ rokmiesiac2okres <- function(rok, miesiac, warnIfNAs = FALSE) {
   stopifnot(is.numeric(rok),
             all(as.integer(rok) == rok | is.na(rok)),
             all(is.finite(rok) | is.na(rok)),
-            all(miesiac %in% (1:12) | is.na(miesiac)))
+            all(miesiac %in% (1:12) | is.na(miesiac)),
+            is.logical(warnIfNAs), length(warnIfNAs) == 1L, !anyNA(warnIfNAs))
   if ((anyNA(rok) | anyNA(miesiac)) & warnIfNAs) {
     warning("W przekazanych wektorach występują braki danych.")
   }
   return(12*rok + miesiac)
+}
+#' @title Obliczanie "okresu" na podstawie roku i miesiąca
+#' @description Funkcja pomocnicza pozwalająca obliczyć numer "okresu" na
+#' na podstawie podanych dat.
+#' @param x wektor ciągów znaków zawierający daty w formacie "%d-%m-%Y" lub
+#' wektor obiektów klasy *Date*
+#' @returns wektor liczb całkowitych
+#' @seealso [rokmiesiac2okres()] [okres2rokmiesiac()], [okres2rokszk()],
+#' [okres2data()], [data2rokszk()]
+#' @examples
+#' data2okres("2026-08-06")
+#' @export
+data2okres <- function(x) {
+  stopifnot(is.character(x) | inherits(x, "Date"), !anyNA(x))
+  if (is.character(x)) x <- as.Date(x, format = "%d-%m-%Y")
+  return(rokmiesiac2okres(as.integer(format(x, "%Y")),
+                          as.integer(format(x, "%m"))))
 }
 #' @title Zamiana "okresu" na rok i miesiac
 #' @description Funkcja pomocnicza pozwalająca zamienić numer "okresu", używany
@@ -36,8 +54,8 @@ rokmiesiac2okres <- function(rok, miesiac, warnIfNAs = FALSE) {
 #' @return lista złożona z dwóch elementów: `rok` i `miesiac`, z których każdy
 #' jest wektorem liczb całkowitych lub dwuelementowy wektor liczb całkowitych
 #' (jeśli argument `SIMPLIFY= TRUE`, a argument `x` jest długości 1)
-#' @seealso [rokmiesiac2okres()], [okres2rokszk()], [okres2data()],
-#' [data2rokszk()]
+#' @seealso [rokmiesiac2okres()], [data2okres()], [okres2rokszk()],
+#' [okres2data()], [data2rokszk()]
 #' @examples
 #' okres2rokmiesiac(24249)
 #' okres2rokmiesiac(c(24249, 24252, 24253))
@@ -70,7 +88,7 @@ okres2rokmiesiac <- function(x, SIMPLIFY = TRUE, warnIfNAs = TRUE) {
 #' pozwala przypisać różne dni różnym okresom w ramach `x`
 #' @return wektor ciągów znaków z datami zapisanymi w formacie "%d-%m-%Y"
 #' @seealso [okres2rokmiesiac()], [okres2rokszk()], [rokmiesiac2okres()],
-#' [data2rokszk()]
+#' [data2okres()], [data2rokszk()]
 #' @examples
 #' okres2data(24249)
 #' okres2data(c(24249, 24252, 24253))
@@ -88,20 +106,25 @@ okres2data <- function(x, dzien = "01", warnIfNAs = TRUE) {
 #' rok szkolny (jako liczbę wskazującą **pierwszy** rok kalendarzowy w ramach
 #' odpowiedniego roku szkolnego albo tekst z pełnym opisem roku szkolnego).
 #' @inheritParams okres2rokmiesiac
-#' @param tekst wartość logiczna - czy zwrócony powinien zostać tekst z pełnym
-#' opisem roku szkolnego (np. "2023/2024"), czy liczba całkowita wskazującą
-#' **pierwszy** rok kalendarzowy w ramach odpowiedniego roku szkolnego
+#' @inheritParams data2rokszk
 #' @return wektor ciągów znaków lub wektor liczb całkowitych
 #' @seealso [data2rokszk()], [okres2rokmiesiac()], [okres2data()],
-#' [rokmiesiac2okres()]
+#' [rokmiesiac2okres()], [data2okres()]
 #' @examples
 #' okres2rokszk(c(24248, 24249))
 #' okres2rokszk(c(24248, 24249), tekst = FALSE)
 #' @export
-okres2rokszk <- function(x, tekst = TRUE, warnIfNAs = TRUE) {
-  stopifnot(is.logical(tekst), length(tekst) == 1L, !anyNA(tekst))
+okres2rokszk <- function(x, tekst = TRUE, warnIfNAs = TRUE,
+                         akademicki = FALSE) {
+  stopifnot(is.logical(tekst), length(tekst) == 1L, !anyNA(tekst),
+            is.logical(akademicki), length(akademicki) == 1L, !anyNA(akademicki))
+  if (akademicki) {
+    mPoprz <- 1L:9L
+  } else {
+    mPoprz <- 1L:8L
+  }
   x <- okres2rokmiesiac(x)
-  rok <- x$rok - ifelse(x$miesiac %in% (1L:8L), 1L, 0L)
+  rok <- x$rok - ifelse(x$miesiac %in% mPoprz, 1L, 0L)
   if (tekst) rok <- paste0(rok, "/", rok + 1L)
   return(rok)
 }
@@ -110,32 +133,46 @@ okres2rokszk <- function(x, tekst = TRUE, warnIfNAs = TRUE) {
 #' "%d-%m-%Y" na rok szkolny (jako liczbę wskazującą **pierwszy** rok
 #' kalendarzowy w ramach odpowiedniego roku szkolnego albo tekst z pełnym opisem
 #' roku szkolnego).
-#' @param x wektor ciągów znaków zawierający daty w formacie
-#' @param max liczba - wartość odpowiadająca **pierwszemu** rokowi roku
-#' szkolnego, który zostanie przypisana datom opisującym niezakończony okres
-#' nauki (tj. "31-12-9999")
+#' @param x wektor ciągów znaków zawierający daty w formacie "%d-%m-%Y" lub
+#' wektor obiektów klasy *Date*
+#' @param max liczba - wartość odpowiadająca **pierwszemu** rokowi
+#' najpóźniejszego roku szkolnego, który będzie przypisywany; wszystkie wartości
+#' wskazujące na późniejsze lata szkolne - w szczególności te opisujące
+#' niezakończone okresy nauki (tj. "31-12-9999"), choć w danych występują też
+#' *konkretne* daty wybiegające w przyszłość względem daty ich eksporu z SIO -
+#' zostaną przekodowane na rok szkolny, na który wskazuje wartość tego argumentu
 #' @param tekst wartość logiczna - czy zwrócony powinien zostać tekst z pełnym
 #' opisem roku szkolnego (np. "2023/2024"), czy liczba całkowita wskazującą
 #' **pierwszy** rok kalendarzowy w ramach odpowiedniego roku szkolnego
+#' @param akademicki wartość logiczna - czy przypisanie ma zostać dokonane
+#' w odniesieniu do lat akademickich (rozpoczynających się 1 października),
+#' zamiast w odniesieniu do lat szkolnych (rozpoczynających się 1 września)?
 #' @return wektor ciągów znaków lub wektor liczb całkowitych
 #' @seealso [okres2rokmiesiac()], [okres2rokszk()], [okres2data()],
-#' [rokmiesiac2okres()]
+#' [rokmiesiac2okres()], [data2okres()]
 #' @examples
 #' data2rokszk(c("30-08-2023", "01-09-2023", "31-12-9999"),
 #'             max = 2024)
 #' data2rokszk(c("30-08-2023", "01-09-2023", "31-12-9999"),
 #'             max = 2024, tekst = FALSE)
 #' @export
-data2rokszk <- function(x, max, tekst = TRUE) {
-  stopifnot(is.character(x), !anyNA(x),
+data2rokszk <- function(x, max, tekst = TRUE, akademicki = FALSE) {
+  stopifnot(is.character(x) | inherits(x, "Date"), !anyNA(x),
             is.numeric(max), length(max) == 1L, !anyNA(max), max >= 2020,
             is.finite(max), as.integer(max) == max,
-            is.logical(tekst), length(tekst) == 1L, !anyNA(tekst))
-  x <- as.Date(x, format = "%d-%m-%Y")
+            is.logical(tekst), length(tekst) == 1L, !anyNA(tekst),
+            is.logical(akademicki), length(akademicki) == 1L, !anyNA(akademicki))
+  if (akademicki) {
+    mPoprz <- 1L:9L
+  } else {
+    mPoprz <- 1L:8L
+  }
+  if (is.character(x)) x <- as.Date(x, format = "%d-%m-%Y")
   stopifnot("Niektóre elementy wektora przekazanego argumentem `x` nie są poprawnymi datami w formacie '%d-%m-%Y'" = !anyNA(x))
-  rok <- pmin(as.integer(format(x, format = "%Y")), max) -
-    ifelse(as.integer(format(x, format = "%m")) %in% (1L:8L),
-           1L, 0L)
+  rok <- pmin(as.integer(format(x, format = "%Y")) -
+                ifelse(as.integer(format(x, format = "%m")) %in% (mPoprz),
+                       1L, 0L),
+              max)
   if (tekst) rok <- paste0(rok, "/", rok + 1L)
   return(rok)
 }

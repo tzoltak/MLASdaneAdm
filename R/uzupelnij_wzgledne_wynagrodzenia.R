@@ -70,12 +70,12 @@ uzupelnij_wzgledne_wynagrodzenia <- function(p4, p3, plikW19 = "W19.csv",
     select("okres", "teryt_zam",
            powiat_sr_wynagrodzenie_uzup_ = "SR_WYNAGRODZENIA",
            powiat_bezrobocie_uzup_ = "STOPA_BEZROBOCIA") %>%
-    filter(!is.na(powiat_sr_wynagrodzenie_uzup_))
+    filter(!is.na(.data$powiat_sr_wynagrodzenie_uzup_))
 
   miesOdUkoncz <-  3L:6L
   if (!is.null(p4)) {
     p3 <- p3 %>%
-      filter(mies_od_ukoncz %in% miesOdUkoncz)
+      filter(.data$mies_od_ukoncz %in% miesOdUkoncz)
   }
 
   p3 <- p3 %>%
@@ -86,7 +86,7 @@ uzupelnij_wzgledne_wynagrodzenia <- function(p4, p3, plikW19 = "W19.csv",
     group_by(.data$rok) %>%
     summarise(nBezSrWynagr = sum(is.na(.data$powiat_sr_wynagrodzenie)),
               nBezSrWynagrUzup = sum(is.na(.data$powiat_sr_wynagrodzenie_uzup_)),
-              opis = ifelse(nBezSrWynagr == 0,
+              opis = ifelse(.data$nBezSrWynagr == 0,
                             paste0("- ", .data$rok[1], " rok: żadnych brakujących wartości średnich wynagrodzeń w powiecie;"),
                             paste0("- ", .data$rok[1], " rok:\n  - ",
                                    format(.data$nBezSrWynagr, big.mark = " "),

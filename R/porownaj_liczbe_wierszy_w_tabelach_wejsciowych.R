@@ -3,22 +3,24 @@
 #' Funkcja przygotowuje zestawienie liczby wierszy w poszczególnych plikach
 #' z tabelami *wejściowymi* w podanych katalogach.
 #' @param ... ciągi znaków ze ścieżkami do innych, porównywanych katalogów
+#' @inheritParams tabele_wejsciowe wersja
 #' @returns Ramka danych z wierszami reprezentującymi poszczególne tabele
 #' *wejściowe* i kolumnami reprezentującymi poszczególne katalogi.
 #' @examples
 #' \dontrun{
 #'   w <- porownaj_liczbe_wierszy_w_tabelach_wejsciowych("./",
-#'                                                       "../"dane 2024)
+#'                                                       "../dane 2024")
 #'   print(w, n = Inf)
 #' }
 #' @importFrom dplyr %>% bind_rows
 #' @importFrom tidyr pivot_wider
 #' @export
-porownaj_liczbe_wierszy_w_tabelach_wejsciowych <- function(...) {
-  katalogi <- as.list(...)
+porownaj_liczbe_wierszy_w_tabelach_wejsciowych <- function(..., wersja = c("2021", "2026")) {
+  katalogi <- list(...)
   names(katalogi) <- katalogi
+  wersja <- match.arg(wersja, several.ok = FALSE)
 
-  tabeleWejsciowe <- names(tabele_wejsciowe())
+  tabeleWejsciowe <- names(tabele_wejsciowe(wersja = wersja))
   katalogi <-
     lapply(katalogi,
            function(folder, tabeleWejsciowe) {
