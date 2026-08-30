@@ -772,7 +772,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                  row.names = FALSE, na = "", fileEncoding = "UTF-8")
     }
   }
-  ## W7 (matury) ###############################################################
+  ## W7 (matury-dyplomy) #######################################################
   # uwaga! agreguję po absolwento-latach matury!
   tabeleWejsciowe$W7 <- tabeleWejsciowe$W7 %>%
     semi_join(tabeleWejsciowe$W1,
@@ -818,7 +818,8 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   diagnostykaKompletnosciMatura <- tabeleWejsciowe$W2 %>%
     filter(.data$TYP_SZK %in% c("Bednarska Szkoła Realna",
                                 "Liceum ogólnokształcące",
-                                "Technikum")) %>%
+                                "Technikum",
+                                "Branżowa szkoła II stopnia")) %>%
     select("ID_ABS", "ROK_ABS", "TYP_SZK") %>%
     distinct() %>%
     left_join(tabeleWejsciowe$W7,
@@ -826,7 +827,9 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
     group_by(.data$TYP_SZK, .data$ROK_ABS) %>%
     summarise(zdawal_mature_pct = round(100*mean(!is.na(.data$ROK_MATURA)), 2),
               .groups = "drop")
-  if (any(diagnostykaKompletnosciMatura$zdawal_mature_pct < 80)) {
+  if (any((diagnostykaKompletnosciMatura$zdawal_mature_pct < 80 &
+           diagnostykaKompletnosciMatura$TYP_SZK != "Branżowa szkoła II stopnia") |
+          diagnostykaKompletnosciMatura$zdawal_mature_pct < 40)) {
     message("Dane o wynikach matury (tabela 'W7') wyglądają na niekompletne.",
             ifelse(zapiszProblemy,
                    "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'matura-kompletnosc.csv'.\n",
@@ -844,6 +847,254 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                      przygotuj_argumenty_do_zapisania_tabeli_wejsciowej(
                        tabeleWejsciowe$W7, "w7", wersja)))
     cat(" zakończony ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), ".", sep = "")
+  }
+  ## W27 (wyniki egzaminu ósmoklasisty) ########################################
+  # Informacje o wynikach są agregowane w ramach absolwento-roko-przedmiotów
+  # wybierając tylko najbardziej adekwatny 'stan' wg następującej hierarchii preferencji:
+  #  "Zwolniony" > "Laureat" > "Finalista" > "Przystąpił" > "Unieważniony" > "Przerwany" > "Nieobecny" > "Nie przeprowadzono egzaminu"
+  # Dodatkowo, kolumna TERMIN_E8 tworzona jest z użyciem następującyej heurystyki:
+  #  - statusy "Zwolniony", "Laureat" i "Finalista" zawsze są przypisywane do terminu głównego;
+  # - inny status przypisywany jest do terminu głównego, jeśli dany abolwento-roko-przedmiot
+  #    opisuje tylko jeden rekord i do terminu dodatkowego w każdym innym przypadku.
+  if ("W27" %in% names(tabeleWejsciowe)) {
+    tabeleWejsciowe$W27 <- tabeleWejsciowe$W27 %>%
+      semi_join(tabeleWejsciowe$W1,
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      mutate(DOSTOS_WAR_E8 = as.logical(.data$DOSTOS_WAR_E8),
+             WYNIK_E8 = ifelse(!(.data$STAN_ZDAWANIA_E8 %in%
+                                   c("Przystąpił", "Laureat", "Finalista")),
+                               NA_real_, .data$WYNIK_E8))
+    w27WynikiPozaZakresem <- tabeleWejsciowe$W27 %>%
+      filter(.data$WYNIK_E8 < 0 | .data$WYNIK_E8 > 100)
+    if (nrow(w27WynikiPozaZakresem) > 0L) {
+      warning("\nW danych dot. wyników egzaminu ósmoklasisty (W27) łącznie ",
+              nrow(w27WynikiPozaZakresem),
+              " rekord(y/ów) ma wyniki poza zakresem [0, 100]!\n",
+              "Wynik(i) te(n) zostan(ą/ie) zastąpion(y/e) brakiem danych.\n",
+              immediate. = TRUE, call. = FALSE)
+      tabeleWejsciowe$W27 <- tabeleWejsciowe$W27 %>%
+        mutate(WYNIK_E8 = ifelse(.data$WYNIK_E8 < 0 | .data$WYNIK_E8 > 100,
+                                 NA_real_, .data$WYNIK_E8))
+    }
+    diagnostykaKompletnosciE8 <- tabeleWejsciowe$W2 %>%
+      left_join(tabeleWejsciowe$W27 %>%
+                  select(.data$ID_ABS, .data$ROK_ABS, .data$ROK_E8) %>%
+                  distinct() %>%
+                  count(.data$ID_ABS, .data$ROK_ABS, name = "lPrzystapienE8"),
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      group_by(.data$ROK_ABS, .data$TYP_SZK) %>%
+      summarise(ma_wynik_e8_pct = round(100*mean(!is.na(.data$lPrzystapienE8)), 2),
+                .groups = "drop") %>%
+      mutate(pierwszy_rok_abs_e8 = c("Branżowa szkoła I stopnia" = 2022L,
+                                     "Liceum ogólnokształcące" = 2023L,
+                                     "Bednarska Szkoła Realna" = 2023L,
+                                     "Branżowa szkoła II stopnia" = 2024L,
+                                     "Technikum" = 2024L)[.data$TYP_SZK],
+             byc_moze_problem =
+               case_when(.data$ROK_ABS >= (.data$pierwszy_rok_abs_e8 + 1L) &
+                           .data$TYP_SZK %in% c("Branżowa szkoła I stopnia") &
+                           .data$ma_wynik_e8_pct < 97 ~ TRUE,
+                         .data$ROK_ABS >= .data$pierwszy_rok_abs_e8 &
+                           .data$TYP_SZK %in% c("Bednarska Szkoła Realna",
+                                                "Technikum") &
+                           .data$ma_wynik_e8_pct < 97 ~ TRUE,
+                         .data$ROK_ABS >= .data$pierwszy_rok_abs_e8 &
+                           .data$TYP_SZK == "Liceum ogólnokształcące" &
+                           .data$ma_wynik_e8_pct < 90 ~ TRUE,
+                         .data$ROK_ABS >= (.data$pierwszy_rok_abs_e8 + 1L) &
+                           .data$TYP_SZK == "Branżowa szkoła II stopnia" &
+                           .data$ma_wynik_e8_pct < 85 ~ TRUE,
+                         .default = FALSE))
+    if (any(diagnostykaKompletnosciE8$byc_moze_problem)) {
+      message("Dane o wynikach egzaminu ósmoklasisty (tabela 'W27') wyglądają na niekompletne.",
+              ifelse(zapiszProblemy,
+                     "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'wyniki-e8-kompletnosc.csv.csv'.\n",
+                     "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o wynikach egzaminu ósmoklasisty, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
+    }
+    if (zapiszProblemy) {
+      write.csv2(diagnostykaKompletnosciE8,
+                 "wyniki-e8-kompletnosc.csv",
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
+    }
+    if (wczytajDoBazy) {
+      cat("\nZapis do bazy tabel W27 i W27d (wyniki egzaminu ósmoklasisty)...")
+      tabeleWejsciowe$W27d <- tabeleWejsciowe$W27 %>%
+        filter(.data$TYP_ARKUSZA_E8 != "standardowy") %>%
+        group_by(.data$ID_ABS, .data$ROK_ABS, .data$ROK_E8,
+                 .data$PRZEDMIOT_E8, .data$DOSTOS_WAR_E8) %>%
+        reframe(DOSTOS_FORM_OPIS_E8 = unique(unlist(strsplit(.data$TYP_ARKUSZA_E8, " / "))))
+      tabeleWejsciowe$W27 <- tabeleWejsciowe$W27 %>%
+        mutate(DOSTOS_FORM_E8 = .data$TYP_ARKUSZA_E8 != "standardowy") %>%
+        add_count(.data$ID_ABS, .data$ROK_ABS, .data$ROK_E8, .data$PRZEDMIOT_E8,
+                  name = "lWynikow")
+      tabeleWejsciowe$W27 <-
+        bind_rows(tabeleWejsciowe$W27 %>%
+                    filter(.data$lWynikow == 1L) %>%
+                    mutate(TERMIN_E8 = "główny") %>%
+                    select(-c("TYP_ARKUSZA_E8", "lWynikow")),
+                  tabeleWejsciowe$W27 %>%
+                    filter(.data$lWynikow > 1L) %>%
+                    mutate(STAN_ZDAWANIA_E8 =
+                             factor(.data$STAN_ZDAWANIA_E8,
+                                    c("Zwolniony", "Laureat", "Finalista",
+                                      "Przystąpił",
+                                      "Unieważniony", "Przerwany", "Nieobecny",
+                                      "Nie przeprowadzono egzaminu"))) %>%
+                    arrange(.data$ID_ABS, .data$ROK_ABS, .data$ROK_E8,
+                            .data$PRZEDMIOT_E8, .data$STAN_ZDAWANIA_E8) %>%
+                    group_by(.data$ID_ABS, .data$ROK_ABS, .data$ROK_E8,
+                             .data$PRZEDMIOT_E8) %>%
+                    summarise(DOSTOS_WAR_E8 = any(.data$DOSTOS_WAR_E8),
+                              DOSTOS_FORM_E8 = any(.data$DOSTOS_FORM_E8),
+                              WYNIK_E8 = max(.data$WYNIK_E8[
+                                .data$STAN_ZDAWANIA_E8 == .data$STAN_ZDAWANIA_E8[1]]),
+                              STAN_ZDAWANIA_E8 =
+                                as.character(.data$STAN_ZDAWANIA_E8[1]),
+                              TERMIN_E8 =
+                                ifelse(.data$STAN_ZDAWANIA_E8 %in%
+                                         c("Zwolniony", "Laureat", "Finalista"),
+                                       "główny", "dodatkowy"),
+                              .groups = "drop"))
+      do.call(dbExecute,
+              args = c(list(conn = con),
+                       przygotuj_argumenty_do_zapisania_tabeli_wejsciowej(
+                         tabeleWejsciowe$W27, "w27", wersja)))
+      do.call(dbExecute,
+              args = c(list(conn = con),
+                       przygotuj_argumenty_do_zapisania_tabeli_wejsciowej(
+                         tabeleWejsciowe$W27d, "w27d", wersja)))
+      cat(" zakończony ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), ".", sep = "")
+    }
+  }
+  ## W28 (wyniki procentowe matury) ############################################
+  # W rzadkich przypadkach, gdy występuje kilka rekordów opisujących ten sam
+  # absolwento-roko-przedmioto-poziomo-formę zdawania wybieram rekord
+  # z najwyższym wynikiem.
+  if ("W28" %in% names(tabeleWejsciowe)) {
+    tabeleWejsciowe$W28 <- tabeleWejsciowe$W28 %>%
+      semi_join(tabeleWejsciowe$W1,
+                by = c("ID_ABS", "ROK_ABS")) %>%
+      mutate(TERMIN_MATURA =
+               as.character(factor(.data$TERMIN_MATURA,
+                                   1L:3L,
+                                   c("główny", "poprawkowy", "dodatkowy"))),
+             FORMA_ZDAWANIA =
+               as.character(factor(.data$FORMA_ZDAWANIA,
+                                   c(1L, 3L),
+                                   c("pisemna", "ustna"))),
+             DOSTOS_WAR_MATURA = as.logical(ifelse(.data$ROK_MATURA < 2021L,
+                                                   NA_integer_,
+                                                   .data$DOSTOS_WAR_MATURA)),
+             WYNIK_MATURA = ifelse(!(.data$STAN_ZDAWANIA_MATURA %in%
+                                   c("Przystąpił", "Laureat", "Finalista")),
+                               NA_real_, .data$WYNIK_MATURA))
+    w28WynikiPozaZakresem <- tabeleWejsciowe$W28 %>%
+      filter(.data$WYNIK_MATURA < 0 | .data$WYNIK_MATURA > 100)
+    if (nrow(w28WynikiPozaZakresem) > 0L) {
+      warning("\nW danych dot. wyników procentowych matury (W28) łącznie ",
+              nrow(w28WynikiPozaZakresem),
+              " rekord(y/ów) ma wyniki poza zakresem [0, 100]!\n",
+              "Wynik(i) te(n) zostan(ą/ie) zastąpion(y/e) brakiem danych.\n",
+              immediate. = TRUE, call. = FALSE)
+      tabeleWejsciowe$W28 <- tabeleWejsciowe$W28 %>%
+        mutate(WYNIK_MATURA = ifelse(.data$WYNIK_MATURA < 0 | .data$WYNIK_MATURA > 100,
+                                 NA_real_, .data$WYNIK_MATURA))
+    }
+    diagnostykaKompletnosciMatura <- diagnostykaKompletnosciMatura |>
+      full_join(tabeleWejsciowe$W2 %>%
+                  filter(.data$TYP_SZK %in% c("Bednarska Szkoła Realna",
+                                              "Liceum ogólnokształcące",
+                                              "Technikum",
+                                              "Branżowa szkoła II stopnia")) %>%
+                  select("ID_ABS", "ROK_ABS", "TYP_SZK") %>%
+                  distinct() %>%
+                  left_join(tabeleWejsciowe$W28,
+                            by = c("ID_ABS", "ROK_ABS")) %>%
+                  group_by(.data$TYP_SZK, .data$ROK_ABS) %>%
+                  summarise(ma_wyniki_matury_pct =
+                              round(100*mean(!is.na(.data$ROK_MATURA)), 2),
+                            .groups = "drop"),
+                by = c("TYP_SZK", "ROK_ABS"))
+    if (any(diagnostykaKompletnosciMatura$ma_wyniki_matury_pct < 80)) {
+      message("Dane o wynikach procentowych matury (tabela 'W28') wyglądają na niekompletne.",
+              ifelse(zapiszProblemy,
+                     "\nPodsumowanie informacji o odsetkach danych, które udało się przyłączyć zostanie zapisane w pliku 'matura-wyniki-kompletnosc.csv'.\n",
+                     "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o wynikach matury, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
+    }
+    if (zapiszProblemy) {
+      write.csv2(diagnostykaKompletnosciMatura,
+                 "matura-wyniki-kompletnosc.csv",
+                 row.names = FALSE, na = "", fileEncoding = "UTF-8")
+    }
+    tabeleWejsciowe$W28 <- tabeleWejsciowe$W28 %>%
+      mutate(DOSTOS_FORM_MATURA = .data$ARKUSZ_MATURA != "standardowy") %>%
+      add_count(.data$ID_ABS, .data$ROK_ABS, .data$ROK_MATURA,
+                .data$TERMIN_MATURA, .data$PRZEDMIOT_MATURA,
+                .data$POZIOM_MATURA, .data$FORMA_ZDAWANIA, name = "lWynikow")
+    if (any(tabeleWejsciowe$W28$lWynikow > 1L)) {
+      message("W danych o wynikach procentowych matury (tabela 'W28') wystąpił(y/o) ",
+              tabeleWejsciowe$W28 %>%
+                filter(.data$lWynikow > 1L) %>%
+                select("ID_ABS", "ROK_ABS", "ROK_MATURA", "TERMIN_MATURA",
+                       "PRZEDMIOT_MATURA", "POZIOM_MATURA", "FORMA_ZDAWANIA") %>%
+                distinct() %>%
+                nrow(), " kombinacj(a/e) wartości kolumn (ID_ABS, ROK_ABS, ROK_MATURA, TERMIN_MATURA, PRZEDMIOT_MATURA, POZIOM_MATURA, FORMA_ZDAWANIA), któr(ą/e) opisuje więcej niż jeden rekord.\n",
+              "W ramach każdej z tych kombinacji zostanie zapisany tylko rekord z najwyższym wynikiem.",
+              ifelse(zapiszProblemy,
+                     "\nWycinek 'W28' zawierający te rekordy zostanie zapisany w pliku 'wielokrotne-wyniki-matury.csv'.\n",
+                     "\nJeżeli chcesz móc sprawdzić, jak wielu absolwentom udało się przyłączyć dane o wynikach matury, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"))
+      if (zapiszProblemy) {
+        write.csv2(tabeleWejsciowe$W28 %>%
+                     filter(.data$lWynikow > 1L),
+                   "wielokrotne-wyniki-matury.csv",
+                   row.names = FALSE, na = "", fileEncoding = "UTF-8")
+      }
+    }
+    if (wczytajDoBazy) {
+      cat("\nZapis do bazy tabel W28 i W28d (wyniki egzaminu ósmoklasisty)...")
+      tabeleWejsciowe$W28d <- tabeleWejsciowe$W28 %>%
+        filter(.data$ARKUSZ_MATURA != "standardowy") %>%
+        group_by(.data$ID_ABS, .data$ROK_ABS, .data$ROK_MATURA,
+                 .data$TERMIN_MATURA, .data$PRZEDMIOT_MATURA,
+                 .data$POZIOM_MATURA, .data$FORMA_ZDAWANIA,
+                 .data$DOSTOS_WAR_MATURA) %>%
+        reframe(DOSTOS_FORM_OPIS_MATURA = unique(unlist(strsplit(.data$ARKUSZ_MATURA, " / "))))
+      tabeleWejsciowe$W28 <-
+        bind_rows(tabeleWejsciowe$W28 %>%
+                    filter(.data$lWynikow == 1L) %>%
+                    select(-c("ARKUSZ_MATURA", "lWynikow")),
+                  tabeleWejsciowe$W28 %>%
+                    filter(.data$lWynikow > 1L) %>%
+                    mutate(STAN_ZDAWANIA_MATURA =
+                             factor(.data$STAN_ZDAWANIA_MATURA,
+                                    c("Zwolniony", "Laureat", "Finalista",
+                                      "Przystąpił",
+                                      "Unieważniony", "Przerwany", "Nieobecny",
+                                      "Nie przeprowadzono egzaminu"))) %>%
+                    arrange(.data$ID_ABS, .data$ROK_ABS, .data$ROK_MATURA,
+                            .data$TERMIN_MATURA, .data$PRZEDMIOT_MATURA,
+                            .data$POZIOM_MATURA, .data$FORMA_ZDAWANIA,
+                            .data$STAN_ZDAWANIA_MATURA) %>%
+                    group_by(.data$ID_ABS, .data$ROK_ABS, .data$ROK_MATURA,
+                             .data$TERMIN_MATURA, .data$PRZEDMIOT_MATURA,
+                             .data$POZIOM_MATURA, .data$FORMA_ZDAWANIA) %>%
+                    summarise(DOSTOS_WAR_MATURA = any(.data$DOSTOS_WAR_MATURA),
+                              DOSTOS_FORM_MATURA = any(.data$DOSTOS_FORM_MATURA),
+                              WYNIK_MATURA = max(.data$WYNIK_MATURA[
+                                .data$STAN_ZDAWANIA_MATURA == .data$STAN_ZDAWANIA_MATURA[1]]),
+                              STAN_ZDAWANIA_MATURA =
+                                as.character(.data$STAN_ZDAWANIA_MATURA[1]),
+                              .groups = "drop"))
+      do.call(dbExecute,
+              args = c(list(conn = con),
+                       przygotuj_argumenty_do_zapisania_tabeli_wejsciowej(
+                         tabeleWejsciowe$W28, "w28", wersja)))
+      do.call(dbExecute,
+              args = c(list(conn = con),
+                       przygotuj_argumenty_do_zapisania_tabeli_wejsciowej(
+                         tabeleWejsciowe$W28d, "w28d", wersja)))
+      cat(" zakończony ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), ".", sep = "")
+    }
   }
   ## W8 i W10 (świadectwa potwierdzające kwalifikacje) #########################
   # uwaga! agreguję po absolwento-kwalifikacjach! (wybierając pierwsze zdanie)
@@ -1272,16 +1523,45 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   }
   ## W30 (dane uczelni i ich filii) ############################################
   tabeleWejsciowe$w30a <- tabeleWejsciowe$W30 %>%
-    select("ID_PODMIOTU", "ID_UCZELNI") %>%
+    select("ID_PODMIOTU", "ID_UCZELNI", "RODZAJ_UCZELNI") %>%
     distinct()
-  tabeleWejsciowe$W30 <- tabeleWejsciowe$W30 %>%
-    # hack na Uniwersytet Jagielloński
-    mutate(DATA_OD =
-             ifelse(.data$ID_PODMIOTU == "ec799b31-2b67-4e3d-b91b-d4bb28f41d43" &
-                      is.na(.data$DATA_OD), "30/09/1364", .data$DATA_OD)) %>%
-    mutate(across(c("DATA_OD", "DATA_DO"),
-                  ~as.Date(., tryFormats = c("%d-%m-%Y", "%d/%m/%Y"))),
-           TERYT_PODMIOTU = 100L*.data$TERYT_PODMIOTU)
+
+  brakiW30 <- tabeleWejsciowe$W30 %>%
+    select(-c("TERYT_POW_PODMIOTU", "WOJEWODZTWO_PODMIOTU", "POWIAT_PODMIOTU",
+              "RODZAJ_GMINY_PODMIOTU", "ORGAN_NADZORUJACY",
+              "ORGAN_NADZORUJACY_TYP")) %>%
+    sapply(function(x) return(anyNA(x) | any(x == '')))
+  if (any(brakiW30)) {
+    stop("W pliku 'W30.csv' kolumny '",
+         paste(names(brakiW30)[brakiW30], collapse = "', '"),
+         "' zawierają braki danych (lub ew. puste ciągi znaków), choć jest to niedozwolone.")
+  }
+  uczelnioLataAkadWDanych <- tabeleWejsciowe$W12 %>%
+    filter(!(.data$ID_PODMIOTU %in% c("", NA_character_))) %>%
+    mutate(DATA_DO = case_when(.data$CZY_UKONCZ_STU %in% 1 ~ .data$DATA_DO_STU,
+                               .data$CZY_UKONCZ_STU %in% 2 ~ .data$DATA_SKRESL_STU,
+                               .default = paste0("30-09-", rokMonitoringu)),
+           across(contains("DATA"), ~as.Date(., format = "%d-%m-%Y"))) %>%
+    group_by(.data$ID_PODMIOTU) %>%
+    summarise(DATA_MIN = min(.data$DATA_OD_STU, na.rm = TRUE),
+              DATA_MAX = max(.data$DATA_DO, na.rm = TRUE),
+              .groups = "drop") %>%
+    mutate(across(all_of(c("DATA_MIN", "DATA_MAX")),
+                  ~data2rokszk(., max = rokMonitoringu - 1L,
+                               tekst = FALSE, akademicki = TRUE))) %>%
+    group_by(.data$ID_PODMIOTU) %>%
+    reframe(ROK_AKAD = .data$DATA_MIN:.data$DATA_MAX) %>%
+    mutate(ROK_AKAD = paste0(.data$ROK_AKAD, "/", .data$ROK_AKAD + 1L))
+  brakujaceDaneUczelni <- anti_join(uczelnioLataAkadWDanych, tabeleWejsciowe$W30,
+                                    by = c("ID_PODMIOTU", "ROK_AKAD"))
+  tabeleWejsciowe$W30 <- semi_join(tabeleWejsciowe$W30, uczelnioLataAkadWDanych,
+                                   by = c("ID_PODMIOTU", "ROK_AKAD"))
+  if (nrow(brakujaceDaneUczelni) > 0L) {
+    write.csv2(brakujaceDaneUczelni, "brakujace-dane-uczelni.csv",
+               row.names = FALSE, na = "", fileEncoding = "UTF-8")
+    stop("Dla niektórych uczelni/filii uczelni występujących w pliku 'W12.csv' nie znaleziono danych w pliku 'W30.csv'.\n",
+         "Zestawienie tych szkoło-lat szkolnych zostało zapisane w pliku 'brakujace-dane-uczelni.csv'.")
+  }
   if (wczytajDoBazy) {
     cat("\nZapis do bazy tabel W30 i W30a (dane uczelni i ich filii)...")
     do.call(dbExecute,
@@ -1434,7 +1714,40 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   tabeleWejsciowe$W16 <- tabeleWejsciowe$W16 %>%
     filter(!is.na(.data$KOD_ZUS)) %>%
     semi_join(tabeleWejsciowe$W1,
-              by = c("ID_ABS", "ROK_ABS")) %>%
+              by = c("ID_ABS", "ROK_ABS"))
+  if (wersja == "2026") {
+    cat("\nIdentyfikowanie i ew. usuwanie nieprawdopodobnych duplikatów w 'W16.csv' ",
+        format(Sys.time(), "%Y.%m.%d %H:%M:%S"), ".", sep = "")
+    nieprawdopodobneDuplikaty <- tabeleWejsciowe$W16 %>%
+      filter(floor(.data$KOD_ZUS / 100) == 110 & .data$WYMIAR_ZATR_LICZNIK %in% 1 &
+               .data$WYMIAR_ZATRUDNIENIA_MIANOWNIK %in% 1) |>
+      count(across(everything()),  name = "n") |>
+      filter(.data$n > 1)
+    if (nrow(nieprawdopodobneDuplikaty) > 0L) {
+      tabeleWejsciowe$W16 <- bind_rows(
+        tabeleWejsciowe$W16 %>%
+          anti_join(nieprawdopodobneDuplikaty,
+                    by = names(tabeleWejsciowe$W16)),
+        nieprawdopodobneDuplikaty %>%
+          select(-"n")
+      )
+      warning("W pliku 'W16.csv' wykryto duplikaty rekordów opisujących zatrudnienie w formie umowy o pracę na pełen etat - wedle wszelkiego prawdopodobieństwa zostały one utworzone w wyniku błędu w procedurze generowania danych w ZUS.",
+              "\nDuplikaty te zostały usunięte (ale pozostawiono w danych po jednej kopii każdego z takich rekordów).",
+              ifelse(zapiszProblemy,
+                     "\nZestawienie tych rekordów zostanie zapisane w pliku 'nieprawdopodobne-duplikaty-skladek-zus.csv'.\n",
+                     "\nJeżeli chcesz móc sprawdzić, których rekordów dotyczy problem, uruchom funkcję `wczytaj_tabele_wejsciowe()` z argumentem `zapiszProblemy=TRUE`.\n"),
+              "\nUWAGA! Wystąpienie takich duplikatów wskazuje na wysokie prawdopodobieństwo błędu w procedurze eksportu danych po stronie ZUS, który skutkuje zapewne występowaniem w danych również innych duplikatów, których nie da się w tak prosty i jednoznaczny sposób zidentyfikować!\n",
+              immediate. = TRUE, call. = FALSE)
+      if (zapiszProblemy) {
+        write.csv2(nieprawdopodobneDuplikaty,
+                   "nieprawdopodobne-duplikaty-skladek-zus.csv",
+                   row.names = FALSE, na = "", fileEncoding = "UTF-8")
+      }
+    }
+  }
+  cat("\nRozpoczęto przekształcanie danych o składkach ('W16.csv') ",
+      format(Sys.time(), "%Y.%m.%d %H:%M:%S"), ".", sep = "")
+  tabeleWejsciowe$W16 <- tabeleWejsciowe$W16 %>%
     mutate(EMERYT_RENCISTA = floor(.data$KOD_ZUS / 10) - 10 * floor(.data$KOD_ZUS / 100),
            NIEPELNOSPRAWNY = .data$KOD_ZUS - 10 * floor(.data$KOD_ZUS / 10),
            KOD_ZUS = floor(.data$KOD_ZUS / 100),
@@ -1458,7 +1771,11 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                         .data$WYMIAR_ZATR_LICZNIK %in% 1L,
                       1L, .data$WYMIAR_ZATRUDNIENIA_MIANOWNIK),
              WYMIAR_ZATR =
-               .data$WYMIAR_ZATR_LICZNIK / .data$WYMIAR_ZATRUDNIENIA_MIANOWNIK)
+               .data$WYMIAR_ZATR_LICZNIK / .data$WYMIAR_ZATRUDNIENIA_MIANOWNIK) %>%
+      mutate(WYMIAR_ZATR =
+               ifelse(.data$KOD_ZUS %in% c(1110:1114, 1120, 1130:1133) &
+                        is.na(.data$WYMIAR_ZATR),
+                      1, .data$WYMIAR_ZATR))
   }
   if (all(c("DATA_OD_UBEZP", "DATA_DO_UBEZP") %in% names(tabeleWejsciowe$W16))) {
     tabeleWejsciowe$W16 <- tabeleWejsciowe$W16 %>%
@@ -1489,7 +1806,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   tabeleWejsciowe$W16 <- tabeleWejsciowe$W16 %>%
     add_count(.data$ID_ABS, .data$ROK_ABS, .data$ROK_SKLADKA,
               .data$MIES_SKLADKA, .data$ID_PLATNIKA, .data$KOD_ZUS)
-  if (wersja == 2021L) {
+  if (wersja == "2021") {
     tabeleWejsciowe$W16 <- bind_rows(
       tabeleWejsciowe$W16 %>%
         filter(.data$n == 1L) %>%
@@ -1536,19 +1853,6 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
             args = c(list(conn = con),
                      przygotuj_argumenty_do_zapisania_tabeli_wejsciowej(
                        tabeleWejsciowe$W16, "w16", wersja)))
-    # dbExecute(con,
-    #           "INSERT INTO w16 (id_abs, rok_abs, rok_skladka, mies_skladka,
-    #                             id_platnika, kod_zus, podst_chor, podst_wypad,
-    #                             podst_emer, podst_zdrow, czy_30, czy_rsa,
-    #                             emeryt_rencista, niepelnosprawny)
-    #            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
-    #        params = tabeleWejsciowe$W16 %>%
-    #          select("ID_ABS", "ROK_ABS", "ROK_SKLADKA", "MIES_SKLADKA",
-    #                 "ID_PLATNIKA", "KOD_ZUS", "PODST_CHOR", "PODST_WYPAD",
-    #                 "PODST_EMER", "PODST_ZDROW", "CZY_30", "CZY_RSA",
-    #                 "EMERYT_RENCISTA", "NIEPELNOSPRAWNY") %>%
-    #          as.list() %>%
-    #          unname())
     cat(" zakończony ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), ".", sep = "")
   }
   ## W23 (mapowanie kodów przerw w opłacaniu składek ZUS) ######################

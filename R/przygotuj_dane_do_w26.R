@@ -1,10 +1,10 @@
 #' @title Przygotowanie danych do tabeli wejsciowej W26
 #' @description Funkcja przekształca dane o szkołach wyeksportowane
 #' z (publicznego API WWW) RSPO i, opcjonalnie, dane o *idPodmiotu* SIO organów
-#' prowadzących szkół, wyeksportowane z hurtowni danych SIO do struktury, jaka
+#' prowadzących szkół, wyeksportowane z hurtowni danych SIO, do struktury, jaka
 #' jest oczekiwana w tabeli *wejściowej* W26. Sprawdza przy tym, czy w danych
 #' z RSPO znajdują się wszystkie szkoły, które występują w danych z danej edycji
-#' monitoringu (plikach *W2.csv*, *W3.csv*, *W4.csv* i *W5.csv*)
+#' monitoringu (plikach *W2.csv*, *W3.csv*, *W4.csv* i *W5.csv*).
 #' @param rokMonitoringu rok (edycja) prowadzenie monitoringu (liczba)
 #' @param rspo opcjonalnie wektor ciągów znaków z nazwami plików CSV
 #' zawierającymi dane wyeksportowane z (publicznego API WWW) RSPO (lub pozyskane
@@ -26,6 +26,7 @@
 #' @returns ramka danych w formacie odpowiadającym specyfikacji
 #' tabeli *wejściowej* W26; jeśli nastąpił zapis do pliku CSV, wynik zwracany
 #' jest jako *ukryty*
+#' @seealso [wczytaj_tabele_wejsciowe()], [zidentyfikuj_szkolo_lata_w_danych()]
 #' @importFrom stats setNames
 #' @importFrom utils read.csv2 write.csv2
 #' @importFrom dplyr %>% .data arrange bind_rows case_match distinct everything inner_join left_join mutate select rename_with
@@ -72,7 +73,7 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
     }
   }
   if (!is.null(zapiszDoPliku)) {
-    stopifnot(length(zapiszDoPliku) == 1L, !anyNA(zapiszDoPliku))
+    stopifnot(length(zapiszDoPliku) == 1L, !is.na(zapiszDoPliku))
   }
 
   message("Wczytywanie plików 'W2.csv', 'W3.csv', 'W4.csv' i 'W5.csv'...")

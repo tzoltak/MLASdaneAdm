@@ -2,13 +2,9 @@
 
 ## Do zrobienia
 
--   Zaimplementować wczytywanie W27 i W28 (jak już zostaną nam wystawione).
--   Dopisać *imputowanie* wymiaru etatu na pełen funkcjonariuszom państwowym (na podstawie kodów skłądek) - na etapie przed wczytaniem W16 do bazy.
--   Rozbudować strukturę W30 tak, aby obejmowała również dane, które można ściągnąć z otwartego API RAD-on (https://radon.nauka.gov.pl/dane/instytucje-systemu-szkolnictwa-wyzszego-i-nauki i https://radon.nauka.gov.pl/dane/filie-instytucji-systemu-szkolnictwa-wyzszego-i-nauki) i przygotować funkcję, która będzie twworzyć odpowiedni plik wejściowy na podstawie SUCZELNIA i zrzutów z tegoż API.
-    -   Chyba najlepiej byłoby analogicznie do W26 ustrukturyzować W30 jako opisującą sytuacje po kolejnych latach akademickich.
 -   Zaimplementować zmiany w tworzeniu tabel *pośrednich*.
     -   Przy tworzeniu P1 trzeba odfiltrowywać wiersze w810 opisujące przystąpienia, które nie zakończyły się uzyskaniem certyfikatu, plus uwzględnić zmianę nazwy kolumny opisującej rok.
-    -   Przy tworzeniu P2trzeba:
+    -   Przy tworzeniu P2 trzeba:
         -   uwzględnić, że od edycji 2026 mamy bezpośrednio podaną w W3 nazwę zawodu kontynuacji;
         -   dodać nowe informacje o studiach: formę, lokalizację uczelni, ale także nazwę uczelni/filii i kierunku studiów, bo i na te ostatnie było zgłaszane zapotrzebowanie (w szczególności w kontekście raportów szkolnych).
     -   Przy tworzeniu P3 trzeba:
@@ -16,7 +12,8 @@
         -   dodać kolumny opisującą wymiar etatu i długość zatrudnienia w ramach miesiąca - **wymaga głębszego namysłu**, jak je konstruować w sytuacjach, gdy ktoś ma wiele umów w miesiącu;
         -   uwzględnić dane z KRUS (W32, W33) przy tworzeniu zmiennej PRACA oraz dodać kolumnę opisującą ROLA_UBEZP;
         -   dodać informację o powiecie kontynuacji nauki - do zastanowienia się, czy oddzielnie w odniesieniu do szkół z SIO i uczelni, czy tylko jedna kolumna i jakie reguły wychodzenia na jedną wartość, gdyby ktoś okazał się uczyś w kilku powiatach jednocześnie;
-        -   w kolumnie opisujące studiowanie dodać informację o formie studiów.
+        -   w kolumnie opisujące studiowanie dodać informację o formie studiów;
+        -   dodać kolumny opisujące dyplomy zawodowe i maturę.
     -   Nowa tabela (tabele? bo może matura oddzielnie ze względu na bardzo złożoną strukturę) pośrednia na wyniki procentowe egzaminów.
     -   Nowa tabela (tabele?) zawierająca informacje o niepełnosprawnościach i dostosowaniach na egzaminach;
         -   być może do usunięcia w przyszłości, jeśli w toku analiz wyjdziemy na sposób tworzenia jakichś satysfakcjonujących nas wskaźników opisujących ogólnie absolwenta, i jako takich dających się dołączyć do P4.
@@ -31,10 +28,19 @@
         -   `ROK_EGZ_ZAW` (zamiast `ROK_KWAL`), `SESJA_EGZ_ZAW`, `DOSTOSOWANIE_EGZ_ZAW`, `WYNIK_PISEMN_EGZ_ZAW` i `WYNIK_PRAKT_EGZ_ZAW` w *w8.csv* i *w10.csv*,
         -   `FORMA_STU` i `ID_PODMIOTU` w *W12.csv*,
         -   `DATA_OD_UBEZP`, `DATA_DO_UBEZP`, `WYMIAR_ZATR_LICZNIK`, `WYMIAR_ZATRUDNIENIA_MIANOWNIK` i `KOD_ZAW_PRACA` w *W16.csv*,
+    -   Nowe testy poprawności:
+        -   Wykluczanie z importu rekordów dotyczących absolwentów, dla których wykryto występowanie w danych jakichś oznak aktywności po dacie ich nominalnej śmierci (opisanej w *W14.csv*),
+            -   Wedle wszelkiego prawdopodobieństwa są to osoby, których dane identyfikacyjne używane do łączenia między rejestrami nie są unikalne;
+        -   Kontrole kompletności danych o wynikach egzaminu ósmoklasisty i (procentowych wyników) matury,
+            -   Przyjęte progi skutkujące wywoływaniem ostrzeżeń są raczej konserwatywne i w przyszłości mogą wymagać korekt w konfrontacji z danymi z kolejnych edycji;
+        -   Wyszukiwanie powtórzeń absolwento-roko-termino-przedmioto-poziomo-formy zdawania w *W28.csv*,
+        -   Kontrolowanie kompetności *W30.csv* względem *W12.csv*,
+        -   Wyszukiwanie zduplikowanych rekordów opisujących zatrudnienie na umowę o pracę w pełnym wymiarze w *W16.csv*.
     -   Nowe pliki z tabelami wejściowymi:
-        -   *W27.csv* - wyniki procentowe egzaminu ósmoklasisty - **jeszcze czeka na implementację**,
-        -   *W28.csv* - wyniki procentowe matury - **jeszcze czeka na implementację**,
-        -   *W30.csv* - słownik uczelni z POL-on,
+        -   *W27.csv* - wyniki procentowe egzaminu ósmoklasisty,
+        -   *W28.csv* - wyniki procentowe matury,
+        -   *W30.csv* - słownik uczelni z POL-on:
+            -   tworzony przy pomocy nowo dodanej funkcji `przygotuj_dane_do_w30()` (p. niżej),
         -   *W31.csv* - orzeczenia o niepełnosprawności z SIO,
         -   *W32.csv* - składki do KRUS,
         -   *W33.csv* - świadczenia z KRUS.
@@ -43,13 +49,17 @@
         -   Zmiany w tabeli *w16*:
             -   Nowa kolumna `LP` ujednoznaczniająca rekordy o tych samych kombinacja wartośći (`ID_ABS`, `ROK_ABS`, `ID_PLATNIKA`, `ROK_SKLADKA_MIES_SKLADKA`, `KOD_ZUS`), gdyż ze względu na informacje o wymiarze etatu i okresie przepracowanym w ramach miesiąca odstąpiono od prostej agregacji w ramach takich kombinacji wartości;
             -   Nowa kolumna `UDZIAL_DNI_ZATR_MIES`, obliczana na podstawie kolumn `DATA_OD_UBEZP`, `DATA_DO_UBEZP` z pliku *W16.csv* i umieszczana w bazie zamiast nich,
-            -   Nowa kolumna `WYMIAR_ZATR`, obliczana na podstawie kolumn `WYMIAR_ZATR_LICZNIK`, `WYMIAR_ZATRUDNIENIA_MIANOWNIK` z pliku *W16.csv* i umieszczana w bazie zamiast nich.
+            -   Nowa kolumna `WYMIAR_ZATR`, obliczana na podstawie kolumn `WYMIAR_ZATR_LICZNIK`, `WYMIAR_ZATRUDNIENIA_MIANOWNIK` z pliku *W16.csv* i umieszczana w bazie zamiast nich;
+                -   Dla kodów ZUS 1110, 1111, 1112, 1113, 1114, 1120 (wojsko), 1130 (Policja), 1131 (agencje wywiadu), 1132 (Straż Graniczna) i 1133 (Państwowa Straż Pożarna) jeśli w danych nie podano wymiaru etatu, to jest przyjmowane, że jest to pełen etat;
+                -   Choć nominalnie również służby, zatrudnienie w których opisywane jest kodami 1134 (Służba Celno-Skarbowa), 1135 (CBA i kontrwywiad) i 1140 (Służba Więzienna), co do zasady zatrudniają w pełnym wymiarze godzin, jednak są tu dopuszczalne wyjątki, a wysokość składek, dla których brak jest danych o wymiarze, jest w danych wyraźnie niższa niż dla tych składek, dla których podano wartość wymiaru jako pełen etat (również przy kontroli szkoły), więc w przypadku tych kodów nie dokonuje się takiej imputacji.
 -   Zasadniczą część kodu odpowiedzialnego za zapis tabel *wejściowych* do bazy zamknieto w (nieeksportowanej) funkcji `przygotuj_argumenty_do_zapisania_tabeli_wejsciowej()`, co umożliwia łatwe wariantowanie pomiędzy edycjami wcześniejszymi, a tymi począwszy od 2026.
 -   Nowy argument `wersja`, pozwalający wskazać, w jakiej strukturze są dane, które mają być przetwarzane, dodano do funkcji:
     -   `wczytaj_tabele_wejsciowe()`,
     -   `porownaj_liczbe_wierszy_w_tabelach_wejsciowych()`,
     -   `tabele_wejsciowe()`
 -   Funkcja `przygotuj_dane_do_w26()` uzyskała możliwość wykorzystania danych o szkołach eksportowanych w całości z hurtowni SIO, dzięki czemu można mieć w W26 dostęp do prawdziwych (a nie tylko sztucznie multiplikowanych; inna sprawa, że one się w czasie specjalnie nie zmieniają) danych o nazwach, lokalizacjach itp. szkół.
+-   Nowa funkcja `przygotuj_dane_do_w30()`, pozwalająca przygotować zawartość tabeli W30 na podstawie plików *SUCZELNIA.csv*, *W12.csv* i *W25.csv* oraz informacji o uczelniach i ich filiach pozyskanych z publicznego API RAD-on (https://radon.nauka.gov.pl/dane/instytucje-systemu-szkolnictwa-wyzszego-i-nauki i https://radon.nauka.gov.pl/dane/filie-instytucji-systemu-szkolnictwa-wyzszego-i-nauki).
+    -   Na podobieństwo tabeli W26, tabelę W30 zaprojektowano jako przechowującą informacje o instytucjo-latach akademickich.
 
 ## Naprawione błędy
 

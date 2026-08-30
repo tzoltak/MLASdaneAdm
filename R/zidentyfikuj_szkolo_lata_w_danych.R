@@ -1,7 +1,8 @@
 #' @title Przygotowanie danych do tabeli wejsciowej W26
-#' @description Funkcja przygotowuje zestawienie unikalnych wartości id RSPO
-#' szkoły i roku szkolnego występujące w danych z monitoringu (tj w tabelach
-#' *wejściowych* W2, W3, W4 i W5).
+#' @description Funkcja nieeksportowana, wykorzystywana przez
+#' [przygotuj_dane_do_w26()]: przygotowuje zestawienie unikalnych wartości
+#' id RSPO szkoły i roku szkolnego występujące w danych z monitoringu (tj.
+#' w tabelach *wejściowych* W2, W3, W4 i W5).
 #' @param w2 ramka danych: tabela *wejściowa* W2
 #' @param w3 ramka danych: tabela *wejściowa* W3
 #' @param w4 ramka danych: tabela *wejściowa* W4

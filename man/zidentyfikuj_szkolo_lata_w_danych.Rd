@@ -21,9 +21,10 @@ zidentyfikuj_szkolo_lata_w_danych(w2, w3, w4, w5, rokMonitoringu)
 ramka danych zawierająca kolumny \code{ID_SZK} i \code{ROK_SZK}
 }
 \description{
-Funkcja przygotowuje zestawienie unikalnych wartości id RSPO
-szkoły i roku szkolnego występujące w danych z monitoringu (tj w tabelach
-\emph{wejściowych} W2, W3, W4 i W5).
+Funkcja nieeksportowana, wykorzystywana przez
+\code{\link[=przygotuj_dane_do_w26]{przygotuj_dane_do_w26()}}: przygotowuje zestawienie unikalnych wartości
+id RSPO szkoły i roku szkolnego występujące w danych z monitoringu (tj.
+w tabelach \emph{wejściowych} W2, W3, W4 i W5).
 }
 \seealso{
 \code{\link[=wczytaj_tabele_wejsciowe]{wczytaj_tabele_wejsciowe()}}, \code{\link[=przygotuj_dane_do_w26]{przygotuj_dane_do_w26()}}

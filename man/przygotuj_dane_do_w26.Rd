@@ -44,8 +44,11 @@ jest jako \emph{ukryty}
 \description{
 Funkcja przekształca dane o szkołach wyeksportowane
 z (publicznego API WWW) RSPO i, opcjonalnie, dane o \emph{idPodmiotu} SIO organów
-prowadzących szkół, wyeksportowane z hurtowni danych SIO do struktury, jaka
+prowadzących szkół, wyeksportowane z hurtowni danych SIO, do struktury, jaka
 jest oczekiwana w tabeli \emph{wejściowej} W26. Sprawdza przy tym, czy w danych
 z RSPO znajdują się wszystkie szkoły, które występują w danych z danej edycji
-monitoringu (plikach \emph{W2.csv}, \emph{W3.csv}, \emph{W4.csv} i \emph{W5.csv})
+monitoringu (plikach \emph{W2.csv}, \emph{W3.csv}, \emph{W4.csv} i \emph{W5.csv}).
+}
+\seealso{
+\code{\link[=wczytaj_tabele_wejsciowe]{wczytaj_tabele_wejsciowe()}}, \code{\link[=zidentyfikuj_szkolo_lata_w_danych]{zidentyfikuj_szkolo_lata_w_danych()}}
 }
