@@ -10,7 +10,9 @@
 #' @param rokMonitoringu rok, w którym prowadzony jest monitoring (ma znaczenie
 #' dla ustalenia adekwatnych przedziałów czasu, dla których mają zostać
 #' obliczone wskaźniki, a na podstawie samych danych funkcja nie ma jak
-#' go odgadnąć, nie narażając się na błędy)
+#' go odgadnąć, nie narażając się na błędy) - domyślna wartość, tj. brak danych,
+#' wskazuje, że ma on zostać zgadnięty z danych (jako maksimum z `rok_abs`
+#' w tabeli *w1* powiększone o jeden)
 #' @param okresOd opcjonalnie liczba całkowita - liczbę miesięcy, o którą
 #' początek okresu objętego wskaźnikami w tabeli P3 ma być
 #' **przesunięty względem** stycznia roku ukończenia szkoły (zostania
@@ -64,6 +66,20 @@
 #' @param przygotujP6 opcjonalnie wartość logiczna - czy przygotować
 #' tabelę *pośrednią* P6? (umożliwia wyłączenie przygotowania wybranej
 #' tabeli w ramach danego wywołania funkcji);
+#' @param przygotujP7 opcjonalnie wartość logiczna - czy przygotować
+#' tabelę *pośrednią* P7? (umożliwia wyłączenie przygotowania wybranej
+#' tabeli w ramach danego wywołania funkcji);
+#' @param przygotujP8 opcjonalnie wartość logiczna - czy przygotować
+#' tabelę *pośrednią* P9? (umożliwia wyłączenie przygotowania wybranej
+#' tabeli w ramach danego wywołania funkcji);
+#' @param przygotujP9 opcjonalnie wartość logiczna - czy przygotować
+#' tabelę *pośrednią* P9? (umożliwia wyłączenie przygotowania wybranej
+#' tabeli w ramach danego wywołania funkcji);
+#' @param zapisujPoKazdejTabeliPosredniej wartość logiczna - jeśli `TRUE`, po
+#' przygotowaniu każdej kolejnej tabeli *pośredniej* lista tabeli *pośrednich*
+#' zostanie zapisana w katalogu roboczym w pliku *tabele-posrednie-temp.RData*;
+#' pozwala to uniknąć frustracji związanych z ew. *wybuchaniem* procesu,
+#' w szczególności w wyniku kłopotów z nie dość dużą ilością RAMu;
 #' @details Dane zawarte w bazie powinny obejmować **tylko jeden rok
 #' prowadzenia monitoringu**, ale mogą obejmować **kilka różnych okresów od
 #' ukończenia szkoły**.
@@ -80,33 +96,27 @@
 #' czy zostały one ukończone, czy zarzucone).
 #' @return lista ramek danych z przygotowanymi tabelami
 #' @seealso [wczytaj_tabele_posrednie()]
-#' @importFrom dplyr %>% .data across add_count any_of arrange bind_rows case_when collect copy_to distinct everything filter full_join group_by join_by if_else inner_join left_join mutate n order_by pull reframe rename right_join select slice_min slice_max starts_with summarise tbl ungroup where
+#' @importFrom dplyr %>% .data across add_count any_of arrange bind_rows case_when collect copy_to distinct everything filter full_join group_by join_by if_else inner_join lag lead left_join mutate n order_by pull reframe rename right_join select slice_min slice_max starts_with summarise tbl ungroup where
 #' @importFrom lubridate days month year
-#' @importFrom DBI dbConnect dbExecute dbDisconnect
+#' @importFrom DBI dbConnect dbExecute dbDisconnect dbIsValid
 #' @importFrom LOSYwskazniki dodaj_wskazniki_dyplomy dodaj_wskazniki_prace dodaj_wskazniki_kontynuacje
 #' @export
 przygotuj_tabele_posrednie <- function(
-  baza, rokMonitoringu,
+  baza, rokMonitoringu = NA_integer_,
   okresOd = 0L, okresDo = rokmiesiac2okres(rokMonitoringu, 3L),
-  okresyP2 = seq(rokmiesiac2okres(rokMonitoringu - 5L, 12L),
+  okresyP2 = seq(rokmiesiac2okres(rokMonitoringu - ifelse(rokMonitoringu < 2026L, 5L, 7L), 12L),
                  rokmiesiac2okres(rokMonitoringu - 1L, 12L), by = 6L),
   imputujDateKoncaSzkoly = as.Date(paste0(rokMonitoringu, "-08-31")),
   imputujDateKoncaStudiow = as.Date(paste0(rokMonitoringu, "-09-30")),
   imputujDateKoncaAdresu = as.Date(paste0(rokMonitoringu, "-05-31")),
   minDniEdukacjiWMiesiacu = 14L,
   przygotujP1 = TRUE, przygotujP2 = TRUE, przygotujP3 = TRUE,
-  przygotujP4 = przygotujP3, przygotujP5 = TRUE, przygotujP6 = TRUE)
+  przygotujP4 = przygotujP3, przygotujP5 = TRUE,
+  przygotujP6 = rokMonitoringu >= 2026L, przygotujP7 = rokMonitoringu >= 2026L,
+  przygotujP8 = rokMonitoringu >= 2026L, przygotujP9 = rokMonitoringu >= 2026L,
+  zapisujPoKazdejTabeliPosredniej = FALSE)
 {
   stopifnot(is.list(baza) | inherits(baza, "DBIConnection"),
-            is.numeric(rokMonitoringu), length(rokMonitoringu) == 1L,
-            as.integer(rokMonitoringu) == rokMonitoringu,
-            inherits(imputujDateKoncaSzkoly, "Date"),
-            length(imputujDateKoncaSzkoly) == 1L,
-            inherits(imputujDateKoncaStudiow, "Date"),
-            length(imputujDateKoncaStudiow) == 1L,
-            inherits(imputujDateKoncaAdresu, "Date"),
-            length(imputujDateKoncaAdresu) == 1L,
-            is.numeric(okresyP2), all(as.integer(okresyP2) == okresyP2),
             is.numeric(minDniEdukacjiWMiesiacu),
             length(minDniEdukacjiWMiesiacu) == 1L,
             as.integer(minDniEdukacjiWMiesiacu) == minDniEdukacjiWMiesiacu,
@@ -116,7 +126,11 @@ przygotuj_tabele_posrednie <- function(
             length(przygotujP3) == 1L, przygotujP3 %in% c(FALSE, TRUE),
             length(przygotujP4) == 1L, przygotujP4 %in% c(FALSE, TRUE),
             length(przygotujP5) == 1L, przygotujP5 %in% c(FALSE, TRUE),
-            length(przygotujP6) == 1L, przygotujP6 %in% c(FALSE, TRUE))
+            length(zapisujPoKazdejTabeliPosredniej) == 1L,
+            zapisujPoKazdejTabeliPosredniej %in% c(FALSE, TRUE))
+  if (przygotujP3 & !przygotujP1) {
+    stop("Tabela P3 nie może zostać przygotowana bez przygotowania tabeli P1.")
+  }
   if (przygotujP4 & !przygotujP1) {
     stop("Tabela P4 nie może zostać przygotowana bez przygotowania tabeli P1.")
   }
@@ -129,18 +143,45 @@ przygotuj_tabele_posrednie <- function(
   if (is.list(baza)) {
     con = do.call(dbConnect, args = baza)
   } else {
+    stopifnot(dbIsValid(baza))
     con = baza
   }
-  rokMonitoringu <- as.integer(rokMonitoringu)
+  lataWDanych <- tbl(con, "w1") %>%
+    pull("rok_abs") %>%
+    unique() %>%
+    sort()
+  if (is.na(rokMonitoringu)) {
+    rokMonitoringu <- max(lataWDanych) + 1L
+  } else {
+    stopifnot(is.numeric(rokMonitoringu), length(rokMonitoringu) == 1L,
+              as.integer(rokMonitoringu) == rokMonitoringu)
+    rokMonitoringu <- as.integer(rokMonitoringu)
+    if (rokMonitoringu %in% lataWDanych) {
+      warning("Wartość argumentu `rokMonitoringu` występuje wśród wartości kolumny `rok_abs` tabeli z danymi wejściowymi W1. Czy na pewno wskazuje ona rok prowadzenia monitoringu?", immediate. = TRUE)
+    } else if (rokMonitoringu != (max(lataWDanych) + 1)) {
+      warning("Wartość argumentu `rokMonitoringu` nie jest równa `max(w1$rok_abs) + 1`. Czy na pewno wskazuje ona rok prowadzenia monitoringu?", immediate. = TRUE)
+    }
+  }
+  stopifnot(is.numeric(okresyP2), all(as.integer(okresyP2) == okresyP2),
+            inherits(imputujDateKoncaSzkoly, "Date"),
+            length(imputujDateKoncaSzkoly) == 1L,
+            inherits(imputujDateKoncaStudiow, "Date"),
+            length(imputujDateKoncaStudiow) == 1L,
+            inherits(imputujDateKoncaAdresu, "Date"),
+            length(imputujDateKoncaAdresu) == 1L,
+            length(przygotujP6) == 1L, przygotujP6 %in% c(FALSE, TRUE),
+            length(przygotujP7) == 1L, przygotujP7 %in% c(FALSE, TRUE),
+            length(przygotujP8) == 1L, przygotujP8 %in% c(FALSE, TRUE),
+            length(przygotujP9) == 1L, przygotujP9 %in% c(FALSE, TRUE))
+  if ((przygotujP7 | przygotujP8 | przygotujP9) & rokMonitoringu < 2026L) {
+    message("Tabele P7, P8 i P9 wymagają danych dostępnych dopiero od edycji monitoringu 2026, więc nie zostaną przygotowane.")
+    przygotujP7 <- przygotujP8 <- przygotujP9 <- FALSE
+  }
   okresyP2 <- as.integer(okresyP2)
   minDniEdukacjiWMiesiacu <- as.integer(minDniEdukacjiWMiesiacu)
   on.exit({if (!inherits(baza, "DBIConnection")) dbDisconnect(con)})
+
   tabelePosrednie <- list()
-  if (rokMonitoringu %in% (tbl(con, "w1") %>%
-                           pull("rok_abs") %>%
-                           unique())) {
-    warning("Wartość argumentu `rokMonitoringu` występuje wśród wartości kolumny `rok_abs` tabeli z danymi wejściowymi W1. Czy na pewno wskazuje ona rok prowadzenia monitoringu?", immediate. = TRUE)
-  }
   cat("\nStart: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")
   # wszystkie absolwento-miesiące
   # uwaga! początkiem zawsze jest styczeń rok_abs! końcem maj roku prowadzenia monitoringu
@@ -170,7 +211,8 @@ przygotuj_tabele_posrednie <- function(
                ifelse(.data$specyfika != "brak specyfiki" &
                         .data$typ_szk != "Szkoła specjalna przysposabiająca do pracy",
                       paste0(.data$typ_szk, " - ", .data$specyfika),
-                      .data$typ_szk)) %>%
+                      .data$typ_szk),
+             teryt_pow_szk = 100L*floor(.data$teryt_gmi_szk / 1000)) %>%
       select("id_szk", "szk_ma_abs", "typ_szk", "typ_szk_sdd", "typ_szk_rspo",
              everything()) %>%
       left_join(tbl(con, "w26"),
@@ -180,78 +222,56 @@ przygotuj_tabele_posrednie <- function(
       left_join(tbl(con, "w26"),
                 by = "id_szk") %>%
       rename(typ_szk_rspo = "typ_szk") %>%
-      mutate(szk_ma_abs = .data$id_szk %in% szkW2,
+      mutate(rok_szk = as.character(.data$rok_szk),
+             szk_ma_abs = .data$id_szk %in% szkW2,
              typ_szk =
                case_when(.data$typ_szk_rspo == "Bednarska Szkoła Realna" ~ "Liceum ogólnokształcące",
                          .data$typ_szk_rspo == "Liceum ogólnokształcące" &
-                           .data$kategoria_uczniow == "Dorośli" ~ "LIceum ogólnokształcące dla dorosłych",
+                           .data$kategoria_uczniow == "Dorośli" ~ "Liceum ogólnokształcące dla dorosłych",
                          .default = .data$typ_szk_rspo),
              typ_szk_sdd =
                ifelse(.data$specyfika != "brak specyfiki" &
                         .data$typ_szk != "Szkoła specjalna przysposabiająca do pracy",
                       paste0(.data$typ_szk, " - ", .data$specyfika),
-                      .data$typ_szk)) %>%
+                      .data$typ_szk),
+             ulica = ifelse(is.na(.data$nr_budynku),
+                            .data$ulica, paste(.data$ulica, .data$nr_budynku)),
+             teryt_pow_szk = 100L*floor(.data$teryt_gmi_szk / 1000),
+             wojewodztwo_szk = tolower(.data$wojewodztwo_szk)) %>%
       select("id_szk", "szk_ma_abs", "typ_szk", "typ_szk_sdd", "typ_szk_rspo",
-             everything())
-    # inner_join(tbl(con, "w30a"), tbl(con, "w30"),
-    #            by = c("id_podmiotu", "id_uczelni")) %>%
-    #   filter(.data$data_do >= dataPoczatku) %>%
-    #   mutate(data_od = if_else(.data$data_od < dataPoczatku,
-    #                            dataPoczatku, .data$data_od),
-    #          data_do = if_else(.data$data_od < dataKonca,
-    #                            dataKonca, .data$data_od)) %>%
-    #   arrange(.data$id_podmiotu, )
-    #   group_by(id_podmiotu, )
-    ## miesiąco-lokalizacje szkół
-    szkoloOkresoGmi <- t26 %>%
-      collect() %>%
-      filter(substring(.data$rok_szk, 6, 9) %in% wszystkieOkresy$rok) %>%
-      group_by(.data$id_szk, .data$rok_szk, .data$teryt_gmi_szk) %>%
-      reframe(okres = seq(rokmiesiac2okres(as.integer(substr(.data$rok_szk,
-                                                             1, 4)), 9L),
-                          rokmiesiac2okres(as.integer(substr(.data$rok_szk,
-                                                             6, 9)), 8L),
-                          by = 1L)) %>%
-      select("id_szk", "okres", teryt_szk_kont = "teryt_gmi_szk")
-    ## miesiaco-lokalizacje uczelni
-    dataPoczatku <- as.Date(paste(wszystkieOkresy$rok[which.min(wszystkieOkresy$okres)],
-                                  wszystkieOkresy$miesiac[which.min(wszystkieOkresy$okres)],
-                                  "01", sep = "-"))
-    dataKonca <- as.Date(paste(wszystkieOkresy$rok[which.max(wszystkieOkresy$okres)],
-                               wszystkieOkresy$miesiac[which.max(wszystkieOkresy$okres)] + 1L,
-                               "01", sep = "-")) - 1L
-    uczelnioOkresoPow <-
-      left_join(tbl(con, "w12") %>%
-                  mutate(data_do = if_else(.data$czy_ukoncz_stu == 0L,
-                                           as.Date(imputujDateKoncaStudiow),
-                                           dplyr::coalesce(.data$data_do_stu,
-                                                           .data$data_skresl_stu)),
-                         data_od_stu = if_else(.data$data_od_stu < dataPoczatku,
-                                               dataPoczatku, .data$data_od_stu),
-                         data_do = if_else(.data$data_do > dataKonca,
-                                           dataKonca, .data$data_do)) %>%
-                  group_by(.data$id_podmiotu) %>%
-                  summarise(data_min = min(.data$data_od_stu, na.rm = TRUE),
-                            data_max = max(.data$data_do, na.rm = TRUE)) %>%
-                  collect() %>%
-                  mutate(okres_min = data2okres(.data$data_min),
-                         okres_max = data2okres(.data$data_max)) %>%
-                  group_by(.data$id_podmiotu) %>%
-                  reframe(okres = .data$okres_min:.data$okres_max) %>%
-                  arrange(.data$id_podmiotu, .data$okres),
-                tbl(con, "w30") %>%
-                  collect() %>%
-                  filter(.data$data_do >= dataPoczatku) %>%
-                  mutate(data_od = if_else(.data$data_od > dataPoczatku,
-                                           .data$data_od, dataPoczatku),
-                         data_do = if_else(.data$data_do < dataKonca,
-                                           .data$data_do, dataKonca),
-                         across(all_of(c("data_od", "data_do")), data2okres)) %>%
-                  arrange(.data$id_podmiotu, .data$data_od, desc(.data$data_do)) %>%
-                  group_by(.data$id_podmiotu, .data$data_od, .data$teryt_podmiotu) %>%
-                  reframe(okres = .data$data_od[1]:.data$data_do[1]) %>%
-                  select("id_podmiotu", "okres", teryt_stu = "teryt_podmiotu"),
-                by = c("id_podmiotu", "okres"))
+             "rok_szk", "nazwa_szk", "teryt_gmi_szk", "teryt_pow_szk",
+             everything(), -"nr_budynku")
+    t30 <- left_join(tbl(con, "w30a"),
+                     tbl(con, "w30"),
+                     by = "id_podmiotu") %>%
+      mutate(rok_akad = as.character(.data$rok_akad),
+             miejsce_w_strukt = ifelse(.data$id_podmiotu == .data$id_uczelni,
+                                       "uczelnia", "filia uczelni"),
+             jedn_nadrz_typ = ifelse(.data$id_podmiotu == .data$id_uczelni,
+                                     NA_character_, "Uczelnia"),
+             id_uczelni = ifelse(.data$id_podmiotu == .data$id_uczelni,
+                                 NA_character_, .data$id_uczelni),
+             szk_ma_abs = FALSE,
+             typ_szk = "Uczelnia",
+             typ_szk_sdd = "Uczelnia",
+             publicznosc = case_when(
+               .data$rodzaj_uczelni %in% c("Uczelnia publiczna",
+                                           "Filia uczelni publicznej") ~ "publiczna",
+               .data$rodzaj_uczelni %in% c("Uczelnia niepubliczna",
+                                           "Filia uczelni niepublicznej") ~ "niepubliczna",
+               .data$rodzaj_uczelni %in% c("Uczelnia kościelna",
+                                           "Filia uczelni kościelnej") ~ "kościelna")) %>%
+      select("szk_ma_abs", id_ucz = "id_podmiotu", "typ_szk", "typ_szk_sdd",
+             rok_szk = "rok_akad", nazwa_szk = "nazwa_podmiotu",
+             typ_ucz = "typ_podmiotu", kraj_ucz = "kraj_podmiotu",
+             teryt_pow_szk = "teryt_pow_podmiotu",
+             wojewodztwo_szk = "wojewodztwo_podmiotu",
+             powiat_szk = "powiat_podmiotu",
+             rodzaj_gmi_ucz = "rodzaj_gminy_podmiotu", "ulica", "pna", "poczta",
+             organ_prowadzacy_typ = "organ_nadzorujacy_typ",
+             organ_prowadzacy_nazwa = "organ_nadzorujacy",
+             "publicznosc",
+             "miejsce_w_strukt", podm_nadrz_id = "id_uczelni", "jedn_nadrz_typ")
   }
   # Półfabrykaty do P1 i P2 ####################################################
   if (przygotujP1 | przygotujP2 | przygotujP4) {
@@ -278,6 +298,14 @@ przygotuj_tabele_posrednie <- function(
     }
     t2 <- t2 %>%
       select(-"n")
+  }
+  # zrzucanie daty zakończenia studiów do jednej kolumny #######################
+  if (przygotujP1 | przygotujP2 | przygotujP3 | przygotujP4) {
+    t12 <- tbl(con, "w12") %>%
+      mutate(data_do_stu =
+               case_when(.data$czy_ukoncz_stu %in% 1L ~ .data$data_do_stu,
+                         .data$czy_ukoncz_stu %in% 2L ~ .data$data_skresl_stu,
+                         .default = imputujDateKoncaStudiow))
   }
   # P1 (dyplomy i świadectwa) ##################################################
   if (przygotujP1) {
@@ -310,8 +338,15 @@ przygotuj_tabele_posrednie <- function(
       select("id_abs", "rok_abs", "kod_zaw", "branza", "rodzaj_dyplomu",
              "rok", "miesiac")
     # certyfikaty kwalifikacji
+    if ("rok_egz_zaw" %in% colnames(tbl(con, "w810"))) {
+      t810 <- tbl(con, "w810") %>%
+        rename(rok_kwal = "rok_egz_zaw")
+    } else {
+      t810 <- tbl(con, "w810")
+    }
     t810 <- t2 %>%
-      inner_join(tbl(con, "w810") %>%
+      inner_join(t810 %>%
+                   filter(!is.na(.data$dok_potw_kwal)) %>%
                    mutate(rodzaj_dyplomu = "certyfikat kwalifikacji",
                           miesiac = if_else(.data$rok_kwal == year(.data$data_kwal),
                                             month(.data$data_kwal),
@@ -360,7 +395,7 @@ przygotuj_tabele_posrednie <- function(
              "kod_zaw_dyplom", "branza_dyplom", "rok", "miesiac")
     # dyplomy ukończenia studiów
     t12d <- t2 %>%
-      inner_join(tbl(con, "w12") %>%
+      inner_join(t12 %>%
                    filter(.data$czy_ukoncz_stu == 1L) %>%
                    mutate(rodzaj_dyplomu =
                             case_when(grepl("magister|lekarz",
@@ -379,7 +414,7 @@ przygotuj_tabele_posrednie <- function(
                  by = c("id_abs", "rok_abs")) %>%
       select("id_abs", "rok_abs", "kod_zaw", "branza", "rodzaj_dyplomu",
              "dyplom_szczegoly", "rok", "miesiac", "dziedzina",
-             "dyscyplina_wiodaca")
+             "dyscyplina_wiodaca", any_of("kierunek_stu"))
     # łączenie i wczytywanie do P1
     tabelePosrednie$p1 <- bind_rows(collect(t6),
                                     collect(t7),
@@ -408,6 +443,8 @@ przygotuj_tabele_posrednie <- function(
       select("id_abs", "rok_abs", "kod_zaw", "branza", "rok", "miesiac",
              "mies_od_ukoncz", "okres", everything()) %>%
       ungroup()
+    rm(t6, t7, t810, t911, t12d)
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # P2 (branża/dziedzina kontynuacji kształcenia) ##############################
@@ -422,28 +459,37 @@ przygotuj_tabele_posrednie <- function(
       mutate(rok = okres2rokmiesiac(.data$okres)$rok,
              miesiac = okres2rokmiesiac(.data$okres)$miesiac,
              mies_od_ukoncz = .data$okres - rokmiesiac2okres(.data$rok_abs, 6L))
+    nazwyZawodow <- bind_rows(tbl(con, "w2") %>%
+                                select("kod_zaw", "nazwa_zaw") %>%
+                                distinct() %>%
+                                collect(),
+                              tbl(con, "w3") %>%
+                                select(kod_zaw = "kod_zaw_kont",
+                                       nazwa_zaw = any_of("nazwa_zaw_kont")) %>%
+                                distinct() %>%
+                                collect()) %>%
+      distinct() %>%
+      add_count(.data$kod_zaw, name = "lNazw") %>%
+      filter(.data$lNazw == 1L, !is.na(.data$nazwa_zaw)) %>%
+      select(-"lNazw")
     # szkoły objęte SIO
     t3c <- t2 %>%
       inner_join(tbl(con, "w3") %>%
-                   rename(kod_zaw = "kod_zaw_kont",
-                          id_szk = "id_szk_kont") %>%
+                   rename(kod_zaw = "kod_zaw_kont") %>%
                    left_join(t20, by = "kod_zaw") %>%
-                   left_join(t26, by = "id_szk") %>%
-                   select("id_abs", "rok_abs", "id_szk",
+                   select("id_abs", "rok_abs", "id_szk_kont",
                           "data_od_szk_kont", "data_do_szk_kont",
-                          typ_szk_kont = "typ_szk",
-                          teryt_pow_kont = "teryt_gmi_szk",
-                          kod_zaw_kont = "kod_zaw", branza_kont = "branza") %>%
+                          kod_zaw_kont = "kod_zaw", any_of("nazwa_zaw_kont"),
+                          branza_kont = "branza") %>%
                    mutate(data_do_szk_kont = if_else(is.na(.data$data_do_szk_kont),
                                                      imputujDateKoncaSzkoly,
                                                      .data$data_do_szk_kont),
-                          teryt_pow_kont = 100*floor(.data$teryt_pow_kont / 1000),
                           forma_kont = "uczeń") %>%
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
-      collect() %>%
       mutate(okres_od_szk_kont = 12L*year(.data$data_od_szk_kont) + month(.data$data_od_szk_kont),
              okres_do_szk_kont = 12L*year(.data$data_do_szk_kont) + month(.data$data_do_szk_kont)) %>%
+      collect() %>%
       inner_join(okresyP2,
                  by = join_by(x$rok_abs == y$rok_abs,
                               overlaps(x$okres_od_szk_kont, x$okres_do_szk_kont,
@@ -459,24 +505,19 @@ przygotuj_tabele_posrednie <- function(
     t4c <- t2 %>%
       inner_join(tbl(con, "w4") %>%
                    filter(!is.na(.data$data_do_kkz)) %>%
-                   rename(kod_kwal = "kod_kwal_kkz",
-                          id_szk = "id_szk_kont") %>%
+                   rename(kod_kwal = "kod_kwal_kkz") %>%
                    left_join(tbl(con, "w21"), by = "kod_kwal") %>%
                    left_join(t20, by = "kod_zaw") %>%
-                   left_join(t26, by = "id_szk") %>%
-                   select("id_abs", "rok_abs", "id_szk",
+                   select("id_abs", "rok_abs", "id_szk_kont",
                           "data_od_kkz", "data_do_kkz",
-                          typ_szk_kont = "typ_szk",
-                          teryt_pow_kont = "teryt_gmi_szk",
                           kod_zaw_kont = "kod_zaw", branza_kont = "branza") %>%
-                   mutate(teryt_pow_kont = 100*floor(.data$teryt_pow_kont / 1000),
-                          forma_kont = "KKZ") %>%
+                   mutate(forma_kont = "KKZ") %>%
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
-      collect() %>%
       filter(!is.na(.data$branza_kont)) %>%
       mutate(okres_od_kkz = 12L*year(.data$data_od_kkz) + month(.data$data_od_kkz),
              okres_do_kkz = 12L*year(.data$data_do_kkz) + month(.data$data_do_kkz)) %>%
+      collect() %>%
       inner_join(okresyP2,
                  by = join_by(x$rok_abs == y$rok_abs,
                               overlaps(x$okres_od_kkz, x$okres_do_kkz,
@@ -491,23 +532,18 @@ przygotuj_tabele_posrednie <- function(
     t5c <- t2 %>%
       inner_join(tbl(con, "w5") %>%
                    filter(!is.na(.data$data_do_kuz)) %>%
-                   rename(kod_zaw = "kod_zaw_kuz",
-                          id_szk = "id_szk_kont") %>%
+                   rename(kod_zaw = "kod_zaw_kuz") %>%
                    left_join(t20, by = "kod_zaw")  %>%
-                   left_join(t26, by = "id_szk") %>%
-                   select("id_abs", "rok_abs", "id_szk",
+                   select("id_abs", "rok_abs", "id_szk_kont",
                           "data_od_kuz", "data_do_kuz",
-                          typ_szk_kont = "typ_szk",
-                          teryt_pow_kont = "teryt_gmi_szk",
                           kod_zaw_kont = "kod_zaw", branza_kont = "branza") %>%
-                   mutate(teryt_pow_kont = 100*floor(.data$teryt_pow_kont / 1000),
-                          forma_kont = "KUZ") %>%
+                   mutate(forma_kont = "KUZ") %>%
                    distinct(),
                  by = c("id_abs", "rok_abs")) %>%
-      collect() %>%
       filter(!is.na(.data$branza_kont)) %>%
       mutate(okres_od_kuz = 12L*year(.data$data_od_kuz) + month(.data$data_od_kuz),
              okres_do_kuz = 12L*year(.data$data_do_kuz) + month(.data$data_do_kuz)) %>%
+      collect() %>%
       inner_join(okresyP2,
                  by = join_by(x$rok_abs == y$rok_abs,
                               overlaps(x$okres_od_kuz, x$okres_do_kuz,
@@ -516,26 +552,43 @@ przygotuj_tabele_posrednie <- function(
       distinct() %>%
       mutate(zrodlo = "W5")
     # studia
-    t12c <- t2 %>%
-      inner_join(tbl(con, "w12") %>%
-                   left_join(tbl(con, "w13") %>%
-                               filter(.data$czy_dyscyplina_wiodaca),
-                             by = "id_kierunku_stu") %>%
-                   select("id_abs", "rok_abs", "data_od_stu", "data_do_stu",
-                          dziedzina_kont = "dziedzina",
-                          dyscyplina_wiodaca_kont = "dyscyplina") %>%
-                   mutate(data_do_stu = if_else(is.na(.data$data_do_stu),
-                                                imputujDateKoncaStudiow,
-                                                .data$data_do_stu),
-                          typ_szk_kont = "Studia",
-                          forma_kont = "student") %>%
-                   distinct(),
-                 by = c("id_abs", "rok_abs")) %>%
-      collect() %>%
-      mutate(okres_od_stu = rokmiesiac2okres(year(.data$data_od_stu),
-                                             month(.data$data_od_stu)),
-             okres_do_stu = rokmiesiac2okres(year(.data$data_do_stu),
-                                             month(.data$data_do_stu))) %>%
+    if (rokMonitoringu < 2026L) {
+      t12c <- t2 %>%
+        inner_join(t12 %>%
+                     left_join(tbl(con, "w13") %>%
+                                 filter(.data$czy_dyscyplina_wiodaca),
+                               by = "id_kierunku_stu") %>%
+                     select("id_abs", "rok_abs", "data_od_stu", "data_do_stu",
+                            dziedzina_kont = "dziedzina",
+                            dyscyplina_wiodaca_kont = "dyscyplina") %>%
+                     mutate(typ_szk_kont = "Studia",
+                            forma_kont = "student") %>%
+                     distinct(),
+                   by = c("id_abs", "rok_abs")) %>%
+        collect()
+    } else {
+      t12c <- t2 %>%
+        inner_join(t12 %>%
+                     left_join(tbl(con, "w13") %>%
+                                 filter(.data$czy_dyscyplina_wiodaca),
+                               by = "id_kierunku_stu") %>%
+                     select("id_abs", "rok_abs", "data_od_stu", "data_do_stu",
+                            id_ucz_kont = "id_podmiotu",
+                            nazwa_zaw_kont = "kierunek_stu",
+                            dziedzina_kont = "dziedzina",
+                            dyscyplina_wiodaca_kont = "dyscyplina",
+                            forma_kont = "forma_stu") %>%
+                     mutate(typ_szk_kont = case_when(
+                              .data$forma_kont %in% "S" ~ "Studia stacjonarne",
+                              .data$forma_kont %in% "N" ~ "Studia niestacjonarne"),
+                            forma_kont = "student") %>%
+                     distinct(),
+                   by = c("id_abs", "rok_abs")) %>%
+        collect()
+    }
+    t12c <- t12c %>%
+      mutate(okres_od_stu = data2okres(.data$data_od_stu),
+             okres_do_stu = data2okres(.data$data_do_stu)) %>%
       inner_join(okresyP2,
                  by = join_by(x$rok_abs == y$rok_abs,
                               overlaps(x$okres_od_stu, x$okres_do_stu,
@@ -543,12 +596,43 @@ przygotuj_tabele_posrednie <- function(
       select(-"data_od_stu", -"data_do_stu", -"okres_od_stu", -"okres_do_stu") %>%
       distinct() %>%
       mutate(zrodlo = "W12")
+    if (rokMonitoringu >= 2026L) {
+      t12c <- t12c %>%
+        mutate(rok_szk = okres2rokszk(.data$okres, akademicki = TRUE)) %>%
+        left_join(t30 %>%
+                    select(id_ucz_kont = "id_ucz", "rok_szk",
+                           teryt_pow_kont = "teryt_pow_szk",
+                           nazwa_szk_kont = "nazwa_szk") %>%
+                    collect(),
+                  by = c("id_ucz_kont", "rok_szk")) %>%
+        select(-"rok_szk")
+    }
     # łączenie i wczytywanie do P2
-    tabelePosrednie$p2 <- bind_rows(t3c, t4c, t5c) %>%
+    tabelePosrednie$p2 <- bind_rows(t3c, t4c, t5c)
+    if (!("nazwa_zaw_kont" %in% names(tabelePosrednie$p2))) {
+      tabelePosrednie$p2$nazwa_zaw_kont <- NA_character_
+    }
+    tabelePosrednie$p2 <- tabelePosrednie$p2 %>%
+      mutate(rok_szk = okres2rokszk(.data$okres, akademicki = FALSE)) %>%
+      left_join(t26 %>%
+                  mutate(teryt_pow_szk =
+                           100L*floor(.data$teryt_gmi_szk / 1000L)) %>%
+                  select(id_szk_kont = "id_szk", "rok_szk",
+                         typ_szk_kont = "typ_szk_sdd",
+                         teryt_pow_kont = "teryt_pow_szk",
+                         nazwa_szk_kont = "nazwa_szk") %>%
+                  collect(),
+                by = c("id_szk_kont", "rok_szk")) %>%
+      left_join(nazwyZawodow %>%
+                  select(kod_zaw_kont = "kod_zaw",
+                         nazwa_zaw_kont2 = "nazwa_zaw"),
+                by = "kod_zaw_kont") %>%
+      mutate(nazwa_zaw_kont = coalesce(.data$nazwa_zaw_kont,
+                                       .data$nazwa_zaw_kont2)) %>%
       select("id_abs", "rok_abs", "kod_zaw", "branza",
-             "rok", "miesiac", "mies_od_ukoncz", "okres", id_szk_kont = "id_szk",
-             "typ_szk_kont", "forma_kont", "teryt_pow_kont",
-             "kod_zaw_kont", "branza_kont", "zrodlo") %>%
+             "rok", "miesiac", "mies_od_ukoncz", "okres", "id_szk_kont",
+             "typ_szk_kont", "forma_kont", "teryt_pow_kont", "nazwa_szk_kont",
+             "kod_zaw_kont", "nazwa_zaw_kont", "branza_kont", "zrodlo") %>%
       bind_rows(t12c) %>%
       group_by(.data$id_abs, .data$rok_abs, .data$okres) %>%
       arrange(.data$id_abs, .data$rok_abs, .data$okres, .data$kod_zaw) %>%
@@ -557,11 +641,15 @@ przygotuj_tabele_posrednie <- function(
              forma_kont = factor(.data$forma_kont,
                                  unique(c("uczeń", "KKZ", "KUZ", "student"),
                                         sort(unique(.data$forma_kont))))) %>%
-      ungroup()
+      ungroup() %>%
+      select("id_abs":"okres", "lp_kont", "zrodlo",
+             "id_szk_kont", "id_ucz_kont", everything())
+    rm(t3c, t4c, t5c, t12c)
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # Półfabrykaty do P3 i P5 ####################################################
-  if (przygotujP3 | przygotujP5) {
+  if (przygotujP3 | przygotujP5 | przygotujP7) {
     # składki ZUS
     t16 <- tbl(con, "w16") %>%
       mutate(podst_maks = if_else(.data$podst_chor > .data$podst_wypad,
@@ -577,10 +665,38 @@ przygotuj_tabele_posrednie <- function(
                          "bezrob_ibe", "bezrobotnystaz", "pomoc_spol",
                          "dziecko", "macierz", "wychow", "bierny_skladka"),
                 by = "kod_zus")
+    if (rokMonitoringu >= 2026) {
+      # rekordy opisujące urlop macierzyński, którym należy zmienić `udzial_dni_zatr_mies` na NA
+      # (bo współwystępują z inną skladką opisującą pracę u tego samego pracodawcy)
+      tMacierz <- t16 %>%
+        filter(.data$kod_zus == 1240L) %>%
+        semi_join(t16 %>%
+                    filter(.data$kod_zus != 1240L,
+                           .data$etat | .data$netat | .data$inne | .data$samoz),
+                  by = c("id_abs", "rok_abs", "rok_skladka", "mies_skladka",
+                         "id_platnika")) %>%
+        select("id_abs", "rok_abs", "rok_skladka", "mies_skladka",
+               "id_platnika", "kod_zus", "lp") %>%
+        mutate(udzial_dni_zatr_mies_na_bd = TRUE)
+      t16 <- t16 %>%
+        left_join(tMacierz,
+                  by = c("id_abs", "rok_abs", "rok_skladka", "mies_skladka",
+                         "id_platnika", "kod_zus", "lp")) %>%
+        mutate(udzial_dni_zatr_mies_na_bd = # backend bazodanowy nie lubi się z przyrównaniami do NA, nawet w formie %in%, więc należy je najpierw pozamieniać na FALSE
+                 ifelse(is.na(.data$udzial_dni_zatr_mies_na_bd),
+                        FALSE, .data$udzial_dni_zatr_mies_na_bd),
+               udzial_dni_zatr_mies =
+                 ifelse(.data$udzial_dni_zatr_mies_na_bd,
+                        NA_real_,
+                        .data$udzial_dni_zatr_mies),
+               wymiar_zatr = ifelse(!.data$etat, NA_real_, .data$wymiar_zatr)) %>%
+        select(-"udzial_dni_zatr_mies_na_bd")
+    }
   }
   # P3 (dane miesięczne) #######################################################
   if (przygotujP3) {
-    cat("\nPrzygotowywanie tabeli P3 (może zająć około pół godziny)...")
+    cat("\nPrzygotowywanie tabeli P3 (może zająć 3-4 h):")
+    cat("\n- tworzenie wzorcowej struktury danych...")
     t1 <- tbl(con, "w1") %>%
       select(-any_of("kraj_pochodzenia")) %>%
       left_join(tbl(con, "w14") %>%
@@ -588,25 +704,25 @@ przygotuj_tabele_posrednie <- function(
                   select("id_abs", "rok_abs", "okres_zgonu"),
                 by = c("id_abs", "rok_abs")) %>%
       collect() %>%
-      dplyr::right_join(wszystkieOkresy,
-                       by = "rok_abs") %>%
+      right_join(wszystkieOkresy,
+                 by = "rok_abs") %>%
       mutate(zmarl = if_else(is.na(.data$okres_zgonu),
                              FALSE, .data$okres > .data$okres_zgonu)) %>%
       select(-"okres_zgonu")
     t1db <- copy_to(con, t1, overwrite = TRUE)
+    cat(" zakończone; ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"),
+        "\n- przetwarzanie danych o kontynuowaniu nauki...", sep = "")
     # dane o kontynuacji nauki w szkołach objętych SIO przerobione na miesiące
     t3m <- tbl(con, "w3") %>%
+      select("id_abs", "rok_abs", id_szk = "id_szk_kont",
+             "data_od_szk_kont", "data_do_szk_kont") %>%
       mutate(data_od_szk_kont =
                as.Date(.data$data_od_szk_kont + minDniEdukacjiWMiesiacu),
              data_do_szk_kont = as.Date(
                if_else(is.na(.data$data_do_szk_kont),
                        imputujDateKoncaSzkoly,
-                       .data$data_do_szk_kont) - minDniEdukacjiWMiesiacu)) %>%
-      rename(id_szk = "id_szk_kont") %>%
-      left_join(t26, by = "id_szk") %>%
-      select("id_abs", "rok_abs", typ_szk_kont = "typ_szk_sdd",
-             "data_od_szk_kont", "data_do_szk_kont") %>%
-      distinct() %>%
+                       .data$data_do_szk_kont) - minDniEdukacjiWMiesiacu),
+             zrodlo = "W3") %>%
       collect()
     # dane o kontynuacji nauki na KKZ przerobione na miesiące
     # w przypadku KKZ i KUZ mogę rozsądnie brać pod uwagę tylko te, dla których
@@ -614,12 +730,14 @@ przygotuj_tabele_posrednie <- function(
     # dany kurs kontynuuje
     t4m <- tbl(con, "w4") %>%
       filter(!is.na(.data$data_do_kkz)) %>%
-      select("id_abs", "rok_abs", data_od_szk_kont = "data_od_kkz",
+      select("id_abs", "rok_abs", id_szk = "id_szk_kont",
+             data_od_szk_kont = "data_od_kkz",
              data_do_szk_kont = "data_do_kkz") %>%
-      mutate(typ_szk_kont = "KKZ",
-             data_od_szk_kont = as.Date(.data$data_od_szk_kont + minDniEdukacjiWMiesiacu),
-             data_do_szk_kont = as.Date(.data$data_do_szk_kont - minDniEdukacjiWMiesiacu)) %>%
-      distinct() %>%
+      mutate(data_od_szk_kont =
+               as.Date(.data$data_od_szk_kont + minDniEdukacjiWMiesiacu),
+             data_do_szk_kont =
+               as.Date(.data$data_do_szk_kont - minDniEdukacjiWMiesiacu),
+             zrodlo = "W4") %>%
       collect()
     # dane o kontynuacji nauki na KUZ przerobione na miesiące
     # w przypadku KKZ i KUZ mogę rozsądnie brać pod uwagę tylko te, dla których
@@ -627,80 +745,167 @@ przygotuj_tabele_posrednie <- function(
     # dany kurs kontynuuje
     t5m <- tbl(con, "w5") %>%
       filter(!is.na(.data$data_do_kuz)) %>%
-      select("id_abs", "rok_abs", data_od_szk_kont = "data_od_kuz",
+      select("id_abs", "rok_abs", id_szk = "id_szk_kont",
+             data_od_szk_kont = "data_od_kuz",
              data_do_szk_kont = "data_do_kuz") %>%
-      mutate(typ_szk_kont = "KUZ",
-             data_od_szk_kont = as.Date(.data$data_od_szk_kont + minDniEdukacjiWMiesiacu),
-             data_do_szk_kont = as.Date(.data$data_do_szk_kont - minDniEdukacjiWMiesiacu)) %>%
-      distinct() %>%
+      mutate(data_od_szk_kont =
+               as.Date(.data$data_od_szk_kont + minDniEdukacjiWMiesiacu),
+             data_do_szk_kont =
+               as.Date(.data$data_do_szk_kont - minDniEdukacjiWMiesiacu),
+             zrodlo = "W5") %>%
       collect()
-    # dane o kontynuacji nauki na studiach przerobione na miesiące
-    t12m <- tbl(con, "w12") %>%
-      select("id_abs", "rok_abs", data_od_szk_kont = "data_od_stu",
-             data_do_szk_kont = "data_do_stu") %>%
-      mutate(typ_szk_kont = "studia",
-             data_od_szk_kont = as.Date(.data$data_od_szk_kont + minDniEdukacjiWMiesiacu),
-             data_do_szk_kont = as.Date(
-               if_else(is.na(.data$data_do_szk_kont),
-                       imputujDateKoncaStudiow,
-                       .data$data_do_szk_kont) - minDniEdukacjiWMiesiacu)) %>%
-      distinct() %>%
-      collect()
-    # laczenie
-    t34512m <- bind_rows(t3m, t4m, t5m, t12m) %>%
+    # laczenie - dane z SIO
+    t345m <- bind_rows(t3m, t4m, t5m) %>%
       # tylko nauka, która trwała dłużej niż minDniEdukacjiWMiesiacu
       filter((.data$data_do_szk_kont - .data$data_od_szk_kont + minDniEdukacjiWMiesiacu) > 0) %>%
-      mutate(okres_od_szk_kont = rokmiesiac2okres(year(.data$data_od_szk_kont),
-                                                  month(.data$data_od_szk_kont)),
-             okres_do_szk_kont = rokmiesiac2okres(year(.data$data_do_szk_kont),
-                                                  month(.data$data_do_szk_kont))) %>%
+      mutate(okres_od_szk_kont = data2okres(.data$data_od_szk_kont),
+             okres_do_szk_kont = data2okres(.data$data_do_szk_kont)) %>%
       inner_join(wszystkieOkresy,
                  by = join_by(x$rok_abs == y$rok_abs,
                               overlaps(x$okres_od_szk_kont, x$okres_do_szk_kont,
                                        y$okres, y$okres))) %>%
+      mutate(rok_szk = okres2rokszk(.data$okres, akademicki = FALSE)) %>%
+      left_join(t26 %>%
+                  select("id_szk", "rok_szk", typ_szk_kont = "typ_szk_sdd",
+                         teryt_pow_szk_kont = "teryt_pow_szk") %>%
+                  collect(),
+                by = c("id_szk", "rok_szk")) %>%
+      mutate(typ_szk_kont = case_when(.data$zrodlo == "W4" ~ "KKZ",
+                                      .data$zrodlo == "W5" ~ "KUZ",
+                                      .default = .data$typ_szk_kont)) %>%
+      select(-c("id_szk", "rok_szk", "zrodlo"))
+    rm(t3m, t4m, t5m)
+    # dane o kontynuacji nauki na studiach przerobione na miesiące
+    if (rokMonitoringu < 2026L) {
+      t12m <- t12 %>%
+        select("id_abs", "rok_abs",
+               data_od_szk_kont = "data_od_stu",
+               data_do_szk_kont = "data_do_stu") %>%
+        mutate(typ_szk_kont = "studia")
+    } else {
+      t12m <- t12 %>%
+        select("id_abs", "rok_abs", id_ucz = "id_podmiotu",
+               data_od_szk_kont = "data_od_stu",
+               data_do_szk_kont = "data_do_stu",
+               typ_szk_kont = "forma_stu") %>%
+        mutate(typ_szk_kont =
+                 case_when(.data$typ_szk_kont %in% "S" ~ "Studia stacjonarne",
+                           .data$typ_szk_kont %in% "N" ~ "Studia niestacjonarne"))
+    }
+    t12m <- t12m %>%
+      mutate(data_od_szk_kont = as.Date(.data$data_od_szk_kont + minDniEdukacjiWMiesiacu),
+             data_do_szk_kont = as.Date(
+               if_else(is.na(.data$data_do_szk_kont),
+                       imputujDateKoncaStudiow,
+                       .data$data_do_szk_kont) - minDniEdukacjiWMiesiacu)) %>%
+      # tylko nauka, która trwała dłużej niż minDniEdukacjiWMiesiacu
+      filter((.data$data_do_szk_kont - .data$data_od_szk_kont + minDniEdukacjiWMiesiacu) > 0) %>%
+      mutate(okres_od_szk_kont = 12L*year(.data$data_od_szk_kont) + month(.data$data_od_szk_kont),
+             okres_do_szk_kont = 12L*year(.data$data_do_szk_kont) + month(.data$data_do_szk_kont)) %>%
+      select(-starts_with("data_")) %>%
+      collect() %>%
+      inner_join(wszystkieOkresy,
+                 by = join_by(x$rok_abs == y$rok_abs,
+                              overlaps(x$okres_od_szk_kont, x$okres_do_szk_kont,
+                                       y$okres, y$okres)))
+    if (rokMonitoringu >= 2026L) {
+      t12m <- t12m %>%
+        mutate(rok_szk = okres2rokszk(.data$okres, akademicki = TRUE)) %>%
+        left_join(t30 %>%
+                    select("id_ucz", "rok_szk",
+                           teryt_pow_szk_kont = "teryt_pow_szk") %>%
+                    collect(),
+                  by = c("id_ucz", "rok_szk")) %>%
+        select(-c("id_ucz", "rok_szk"))
+    }
+    # agregacja form kontynuacji nauki (5-10 minut na danych z edycji 2026)
+    typySzkol <- c("Branżowa szkoła I stopnia",
+                   "Branżowa szkoła I stopnia - specjalna",
+                   "Branżowa szkoła II stopnia",
+                   "Branżowa szkoła II stopnia - specjalna",
+                   "Technikum",
+                   "Technikum - specjalna",
+                   "Liceum ogólnokształcące dla dorosłych",
+                   "Liceum ogólnokształcące",
+                   "Liceum ogólnokształcące - specjalna",
+                   "Szkoła policealna",
+                   "Policealna szkoła plastyczna",
+                   "Policealna szkoła muzyczna",
+                   "Szkoła policealna - specjalna",
+                   "Liceum sztuk plastycznych",
+                   "Szkoła muzyczna II stopnia",
+                   "Szkoła muzyczna I stopnia",
+                   "Szkoła sztuki tańca",
+                   "Szkoła sztuki cyrkowej",
+                   "Inna szkoła artystyczna",
+                   "Szkoła specjalna przysposabiająca do pracy",
+                   "Kolegium Pracowników Służb Społecznych",
+                   "studia",
+                   "Studia stacjonarne",
+                   "Studia niestacjonarne",
+                   "KKZ",
+                   "KUZ")
+    t34512m <- bind_rows(t345m, t12m) %>%
+      select("id_abs", "rok_abs", "okres", "typ_szk_kont") %>%
+      distinct() %>%
       mutate(typ_szk_kont =
                factor(.data$typ_szk_kont, # poniżej radzenie sobie z sytuacją, że w jakimś z poniższych typów nikt jednak nie kontynuował nauki
-                      levels = sort(unique(c(.data$typ_szk_kont,
-                                             c("Branżowa szkoła I stopnia",
-                                               "Branżowa szkoła I stopnia - specjalna",
-                                               "Branżowa szkoła II stopnia",
-                                               "Branżowa szkoła II stopnia - specjalna",
-                                               "Technikum",
-                                               "Technikum - specjalna",
-                                               "LIceum ogólnokształcące dla dorosłych",
-                                               "Liceum ogólnokształcące",
-                                               "Liceum ogólnokształcące - specjalna",
-                                               "Szkoła policealna",
-                                               "Policealna szkoła plastyczna",
-                                               "Policealna szkoła muzyczna",
-                                               "Szkoła policealna - specjalna",
-                                               "Liceum sztuk plastycznych",
-                                               "Szkoła muzyczna II stopnia",
-                                               "Szkoła muzyczna I stopnia",
-                                               "Szkoła sztuki tańca",
-                                               "Szkoła sztuki cyrkowej",
-                                               "Inna szkoła artystyczna",
-                                               "Szkoła specjalna przysposabiająca do pracy",
-                                               "Kolegium Pracowników Służb Społecznych",
-                                               "studia",
-                                               "KKZ",
-                                               "KUZ"))))),
+                      levels = sort(unique(c(.data$typ_szk_kont, typySzkol)))),
              macierz_typ =
                matrix(diag(nlevels(.data$typ_szk_kont)),
                       nrow = nlevels(.data$typ_szk_kont),
                       dimnames = list(levels(.data$typ_szk_kont),
                                       levels(.data$typ_szk_kont)))[.data$typ_szk_kont, ]) %>%
-      add_count(.data$id_abs, .data$rok_abs, .data$okres)
+      add_count(.data$id_abs, .data$rok_abs, .data$okres,
+                name = "lFormKontynuacji")
     t34512m <-
       bind_rows(t34512m %>% # dla wydajności
-                  filter(.data$n == 1L) %>%
+                  filter(.data$lFormKontynuacji == 1L) %>%
                   select("id_abs", "rok_abs", "okres", "macierz_typ"),
-                t34512m %>%
-                  filter(.data$n > 1L) %>%
+                t34512m %>% # dla wydajności
+                  filter(.data$lFormKontynuacji > 1L) %>%
                   group_by(.data$id_abs, .data$rok_abs, .data$okres) %>%
                   summarise(macierz_typ = matrix(colSums(.data$macierz_typ),
                                                  nrow = 1),
                             .groups = "drop")) %>%
+      mutate(macierz_typ =
+               matrix(.data$macierz_typ > 0L, nrow = n(),
+                      dimnames = list(NULL, colnames(t34512m$macierz_typ))))
+    # agregacja powiatów kontynuowania nauki (30-40 min. na danych z edycji 2026)
+    t34512mp <- bind_rows(t345m, t12m) %>%
+      select("id_abs", "rok_abs", "okres", "typ_szk_kont", "teryt_pow_szk_kont") %>%
+      add_count(.data$id_abs, .data$rok_abs, .data$okres, name = "lKontynuacji")
+    t34512mp <-
+      bind_rows(t34512mp %>% # dla wydajności
+                  filter(.data$lKontynuacji == 1L) %>%
+                  select("id_abs", "rok_abs", "okres", "teryt_pow_szk_kont"),
+                t34512mp %>% # dla wydajności
+                  filter(.data$lKontynuacji > 1L) %>%
+                  # preferuję najczęście występujący powiat wśród studiów
+                  # stacjonarnych, w dalszej kolejności niestacjonarnych,
+                  # w dalszej wśród jakichkolwiek szk\oł i w końcu wśród KUZ/KKZ
+                  mutate(waga = case_when(
+                    .data$typ_szk_kont == "Studia stacjonarne" ~ 1000000,
+                    .data$typ_szk_kont %in% c("studia", "Studia niestacjonarne") ~ 10000,
+                    .data$typ_szk_kont %in% c("KKZ", "KUZ") ~ 1,
+                    .default = 100)) %>%
+                  count(.data$id_abs, .data$rok_abs, .data$okres,
+                        .data$teryt_pow_szk_kont,
+                        wt = .data$waga, name = "waga") %>%
+                  group_by(.data$id_abs, .data$rok_abs, .data$okres) %>%
+                  slice_max(order_by = .data$waga, n = 1L, with_ties = TRUE) %>%
+                  ungroup() %>%
+                  # jeśli nie udało się rozstrzygnąć, to niech będziie brak danych
+                  add_count(.data$id_abs, .data$rok_abs, .data$okres,
+                            name = "liczbaPowiatow") %>%
+                  filter(.data$liczbaPowiatow == 1L) %>%
+                  select("id_abs", "rok_abs", "okres", "teryt_pow_szk_kont"))
+    t34512m <- t34512m %>%
+      left_join(t34512mp,
+                by = c("id_abs", "rok_abs", "okres"))
+    rm(t345m, t12m, t34512mp)
+    # tworzenie docelowych zmiennych opisujących kontynuację nauki
+    t34512m <- t34512m %>%
       mutate(macierz_typ =
                matrix(.data$macierz_typ > 0L, nrow = n(),
                       dimnames = list(NULL, colnames(t34512m$macierz_typ)))) %>%
@@ -720,7 +925,7 @@ przygotuj_tabele_posrednie <- function(
                .data$macierz_typ[, "Technikum - specjalna"] ~ 2L,
                .default = 0L),
              nauka_lo = case_when(
-               .data$macierz_typ[, "LIceum ogólnokształcące dla dorosłych"] ~ 1L,
+               .data$macierz_typ[, "Liceum ogólnokształcące dla dorosłych"] ~ 1L,
                .data$macierz_typ[, "Liceum ogólnokształcące"] ~ 2L,
                .data$macierz_typ[, "Liceum ogólnokształcące - specjalna"] ~ 3L,
                .default = 0L),
@@ -747,9 +952,53 @@ przygotuj_tabele_posrednie <- function(
                .data$macierz_typ[, "Kolegium Pracowników Służb Społecznych"] ~ 1L,
                .default = 0L),
              nauka_studia = as.integer(.data$macierz_typ[, "studia"]),
+             nauka_studia2 = case_when(
+               .data$macierz_typ[, "Studia stacjonarne"] ~ 1L,
+               .data$macierz_typ[, "Studia niestacjonarne"] ~ 2L,
+               .default = 0L),
              nauka_kkz = as.integer(.data$macierz_typ[, "KKZ"]),
              nauka_kuz = as.integer(.data$macierz_typ[, "KUZ"])) %>%
       select(-"macierz_typ")
+    if (rokMonitoringu < 2026L) {
+      t34512m <- t34512m %>%
+        select(-"nauka_studia2")
+    } else {
+      t34512m <- t34512m %>%
+        select(-"nauka_studia") %>%
+        rename(nauka_studia = "nauka_studia2")
+    }
+    cat(" zakończone; ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"),
+        "\n- przetwarzanie danych o dyplomach/certfikatach...", sep = "")
+    # informacje o uzyskaniu dyplomów/certyfikatów
+    tDyplZaw <- tabelePosrednie$p1 %>%
+      filter(!is.na(.data$kod_zaw),
+             .data$rodzaj_dyplomu %in% c("certyfikat kwalifikacji",
+                                         "dyplom zawodowy",
+                                         "tytuł czeladnika"),
+             .data$rok >= .data$rok_abs | .data$rodzaj_dyplomu != "dyplom zawodowy",
+             .data$kod_zaw_dyplom == .data$kod_zaw) %>%
+      mutate(rodzaj_dyplomu = factor(.data$rodzaj_dyplomu,
+                                     c("certyfikat kwalifikacji",
+                                       "dyplom zawodowy",
+                                       "tytuł czeladnika"),
+                                     c("Tylko certyfikat kwalifikacji",
+                                       "Dyplom zawodowy",
+                                       "Świadectwo czeladnicze")),
+             okres = ifelse(.data$rodzaj_dyplomu == "Świadectwo czeladnicze",
+                            rokmiesiac2okres(.data$rok_abs, 6L),
+                            .data$okres)) %>%
+      arrange(.data$id_abs, .data$rok_abs, .data$okres) %>%
+      group_by(.data$id_abs, .data$rok_abs) %>%
+      mutate(dyplom_zaw = levels(.data$rodzaj_dyplomu)[cummax(as.integer(.data$rodzaj_dyplomu))]) %>%
+      ungroup() %>%
+      select("id_abs", "rok_abs", "okres", "dyplom_zaw")
+    # informacje o zdaniu matury
+    tMatura <- tabelePosrednie$p1 %>%
+      filter(.data$rodzaj_dyplomu == "matura") %>%
+      select("id_abs", "rok_abs", "okres", matura = "rodzaj_dyplomu") %>%
+      distinct()
+    cat(" zakończone; ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"),
+        "\n- przetwarzanie danych z ZUS (i KRUS):", sep = "")
     # dane adresowe przerobione na miesiące
     # ignoruję ostatnią z zebranych cyfr TERYTu (miasto/wieś)
     # spośród konkurencyjnych TERYTów wybieram
@@ -766,10 +1015,11 @@ przygotuj_tabele_posrednie <- function(
       distinct() %>%
       mutate(okres_od_adr = 12L*year(.data$data_adr_od) + month(.data$data_adr_od),
              okres_do_adr = 12L*year(.data$data_adr_do) + month(.data$data_adr_do)) %>%
-      inner_join(t1db, by = c("id_abs", "rok_abs")) %>%
-      filter(.data$okres >= .data$okres_od_adr,
-             .data$okres <= .data$okres_do_adr,
-             !is.na(.data$teryt),
+      inner_join(t1db,
+                 by = join_by(x$id_abs == y$id_abs, x$rok_abs == y$rok_abs,
+                              overlaps(x$okres_od_adr, x$okres_do_adr,
+                                       y$okres, y$okres))) %>%
+      filter(!is.na(.data$teryt),
              .data$zmarl == FALSE) %>%
       # rozpisane w tak strasznej formie, żeby mogło wykonać się w bazie
       mutate(okres_pocz = as.Date(paste(floor((.data$okres - 1) / 12),
@@ -843,36 +1093,137 @@ przygotuj_tabele_posrednie <- function(
                 choroba = as.integer(any(.data$choroba, na.rm = TRUE)),
                 choroba_macierz = as.integer(any(.data$choroba_macierz, na.rm = TRUE)),
                 .groups = "drop")
+    if (rokMonitoringu >= 2026L) {
+      t33 <- tbl(con, "w33") %>%
+        mutate(okres_od_swiadcz =
+                 12L*year(.data$data_od_swiadcz) + month(.data$data_od_swiadcz),
+               okres_do_swiadcz =
+                 12L*year(.data$data_do_swiadcz) + month(.data$data_do_swiadcz)) %>%
+        inner_join(t1db,
+                   by = join_by(x$id_abs == y$id_abs, x$rok_abs == y$rok_abs,
+                                overlaps(x$okres_od_swiadcz, x$okres_do_swiadcz,
+                                         y$okres, y$okres))) %>%
+        select("id_abs", "rok_abs", "okres", "rodzaj_swiadcz") %>%
+        group_by(.data$id_abs, .data$rok_abs, .data$okres) %>%
+        summarise(choroba_krus =
+                    as.integer(any(.data$rodzaj_swiadcz %in% c(1L, 3L), na.rm = TRUE)),
+                  wypadek_krus =
+                    as.integer(any(.data$rodzaj_swiadcz %in% c(2L, 4L), na.rm = TRUE)),
+                  .groups = "drop")
+      t17 <- t17 %>%
+        full_join(t33,
+                  by = c("id_abs", "rok_abs", "okres")) %>%
+        mutate(wypadek = case_when(.data$wypadek == 1L & .data$wypadek_krus == 1L ~ 3L,
+                                   .data$wypadek == 1L ~ 1L,
+                                   .data$wypadek_krus == 1L ~ 2L,
+                                   .default = 0L),
+               choroba = case_when(.data$choroba == 1L & .data$choroba_krus == 1L ~ 3L,
+                                   .data$choroba == 1L ~ 1L,
+                                   .data$choroba_krus == 1L ~ 2L,
+                                   .default = 0L)) %>%
+        select(-c("wypadek_krus", "choroba_krus"))
+    }
     # składki ZUS
-    t16m <- t16 %>%
-      group_by(.data$id_abs, .data$rok_abs, .data$rok_skladka, .data$mies_skladka) %>%
-      summarise(
-        okres = 12L*.data$rok_skladka + .data$mies_skladka,
-        praca = case_when(
-          any(.data$etat, na.rm = TRUE) & any(.data$samoz, na.rm = TRUE) &
-            any(.data$netat | .data$inne, na.rm = TRUE) ~ 7L, # zatrudnienie na podstawie umowy o pracę i działalność gospodarcza i zatrudnienie w innej formie
-          any(.data$samoz, na.rm = TRUE) & any(.data$netat | .data$inne, na.rm = TRUE) ~ 6L, # działalność gospodarcza i zatrudnienie w innej formie
-          any(.data$etat, na.rm = TRUE) & any(.data$netat | .data$inne, na.rm = TRUE) ~ 5L, # zatrudnienie na podstawie umowy o pracę i zatrudnienie w innej formie
-          any(.data$etat, na.rm = TRUE) & any(.data$samoz, na.rm = TRUE) ~ 4L, # zatrudnienie na podstawie umowy o pracę i działalność gospodarcza
-          any(.data$etat, na.rm = TRUE) ~ 1L, # zatrudnienie na podstawie umowy o pracę, brak innej formy,
-          any(.data$samoz, na.rm = TRUE) ~ 2L, # działalność gospodarcza (samozatrudnienie), brak innej formy
-          any(.data$netat | .data$inne, na.rm = TRUE) ~ 3L, # zatrudnienie w innej formie (umowa zlecenie, o dzieło, …), brak zatrudnienia na etacie ani działalności gospodarczej
-          .default = 0L),
-        mlodociany = as.integer(any(.data$mlodoc, na.rm = TRUE)),
-        bezrobocie = as.integer(any(.data$bezrob_ibe, na.rm = TRUE)),
-        bezrobocie_staz = if_else(any(.data$bezrob_ibe, na.rm = TRUE),
-                                  as.integer(any(.data$bezrobotnystaz, na.rm = TRUE)),
-                                  NA_integer_),
-        dziecko = as.integer(any(.data$dziecko, na.rm = TRUE)),
-        macierz = as.integer(any(.data$macierz, na.rm = TRUE)),
-        wychow = as.integer(any(.data$wychow, na.rm = TRUE)),
-        pomoc_spol = as.integer(any(.data$pomoc_spol, na.rm = TRUE)),
-        emeryt_rencista = max(.data$emeryt_rencista, na.rm = TRUE),
-        niepelnosprawny = max(.data$niepelnosprawny, na.rm = TRUE),
-        wynagrodzenie = sum(.data$podst_maks, na.rm = TRUE),
-        wynagrodzenie_uop = sum(.data$podst_maks[.data$etat], na.rm = TRUE),
-        biernosc = any(.data$bierny_skladka, na.rm = TRUE),
-        .groups = "drop")
+    if (rokMonitoringu < 2026L) {
+      t16m <- t16 %>%
+        group_by(.data$id_abs, .data$rok_abs, .data$rok_skladka, .data$mies_skladka) %>%
+        summarise(
+          okres = 12L*.data$rok_skladka + .data$mies_skladka,
+          praca = case_when(
+            any(.data$etat, na.rm = TRUE) & any(.data$samoz, na.rm = TRUE) &
+              any(.data$netat | .data$inne, na.rm = TRUE) ~ 7L, # zatrudnienie na podstawie umowy o pracę i działalność gospodarcza i zatrudnienie w innej formie
+            any(.data$samoz, na.rm = TRUE) & any(.data$netat | .data$inne, na.rm = TRUE) ~ 6L, # działalność gospodarcza i zatrudnienie w innej formie
+            any(.data$etat, na.rm = TRUE) & any(.data$netat | .data$inne, na.rm = TRUE) ~ 5L, # zatrudnienie na podstawie umowy o pracę i zatrudnienie w innej formie
+            any(.data$etat, na.rm = TRUE) & any(.data$samoz, na.rm = TRUE) ~ 4L, # zatrudnienie na podstawie umowy o pracę i działalność gospodarcza
+            any(.data$etat, na.rm = TRUE) ~ 1L, # zatrudnienie na podstawie umowy o pracę, brak innej formy,
+            any(.data$samoz, na.rm = TRUE) ~ 2L, # działalność gospodarcza (samozatrudnienie), brak innej formy
+            any(.data$netat | .data$inne, na.rm = TRUE) ~ 3L, # zatrudnienie w innej formie (umowa zlecenie, o dzieło, …), brak zatrudnienia na etacie ani działalności gospodarczej
+            .default = 0L),
+          mlodociany = as.integer(any(.data$mlodoc, na.rm = TRUE)),
+          bezrobocie = as.integer(any(.data$bezrob_ibe, na.rm = TRUE)),
+          bezrobocie_staz = if_else(any(.data$bezrob_ibe, na.rm = TRUE),
+                                    as.integer(any(.data$bezrobotnystaz, na.rm = TRUE)),
+                                    NA_integer_),
+          dziecko = as.integer(any(.data$dziecko, na.rm = TRUE)),
+          macierz = as.integer(any(.data$macierz, na.rm = TRUE)),
+          wychow = as.integer(any(.data$wychow, na.rm = TRUE)),
+          pomoc_spol = as.integer(any(.data$pomoc_spol, na.rm = TRUE)),
+          emeryt_rencista = max(.data$emeryt_rencista, na.rm = TRUE),
+          niepelnosprawny = max(.data$niepelnosprawny, na.rm = TRUE),
+          wynagrodzenie = sum(.data$podst_maks, na.rm = TRUE),
+          wynagrodzenie_uop = sum(.data$podst_maks[.data$etat], na.rm = TRUE),
+          biernosc = any(.data$bierny_skladka, na.rm = TRUE),
+          .groups = "drop")
+    } else {
+      t32 <- tbl(con, "w32") %>%
+        mutate(okres_od_ubezp =
+                 12L*year(.data$data_od_ubezp) + month(.data$data_od_ubezp),
+               okres_do_ubezp =
+                 12L*year(.data$data_do_ubezp) + month(.data$data_do_ubezp)) %>%
+        inner_join(t1db,
+                   by = join_by(x$id_abs == y$id_abs, x$rok_abs == y$rok_abs,
+                                overlaps(x$okres_od_ubezp, x$okres_do_ubezp,
+                                         y$okres, y$okres))) %>%
+        select("id_abs", "rok_abs", "okres", ubezp_krus = "rola_ubezp") %>%
+        mutate(ubezp_krus =
+                 ifelse(is.na(.data$ubezp_krus), 9L, .data$ubezp_krus)) %>%
+        group_by(.data$id_abs, .data$rok_abs, .data$okres) %>%
+        summarise(ubezp_krus = min(.data$ubezp_krus, na.rm = TRUE),
+                  .groups = "drop")
+      t16m <- t16 %>%
+        group_by(.data$id_abs, .data$rok_abs, .data$rok_skladka, .data$mies_skladka) %>%
+        summarise(
+          okres = 12L*.data$rok_skladka + .data$mies_skladka,
+          praca = case_when( # uwaga, kawałek dalej dodawany jest jeszcze kod 9 na podstawie danych z KRUS!
+            any(.data$etat, na.rm = TRUE) & any(.data$samoz, na.rm = TRUE) &
+              any(.data$netat | .data$inne, na.rm = TRUE) ~ 7L, # zatrudnienie na podstawie umowy o pracę i działalność gospodarcza i zatrudnienie w innej formie
+            any(.data$samoz, na.rm = TRUE) & any(.data$netat | .data$inne, na.rm = TRUE) ~ 6L, # działalność gospodarcza i zatrudnienie w innej formie
+            any(.data$etat, na.rm = TRUE) & any(.data$netat | .data$inne, na.rm = TRUE) ~ 5L, # zatrudnienie na podstawie umowy o pracę i zatrudnienie w innej formie
+            any(.data$etat, na.rm = TRUE) & any(.data$samoz, na.rm = TRUE) ~ 4L, # zatrudnienie na podstawie umowy o pracę i działalność gospodarcza
+            any(.data$etat, na.rm = TRUE) ~ 1L, # zatrudnienie na podstawie umowy o pracę, brak innej formy,
+            any(.data$samoz, na.rm = TRUE) ~ 2L, # działalność gospodarcza (samozatrudnienie), brak innej formy
+            any(.data$netat | .data$inne, na.rm = TRUE) ~ 3L, # zatrudnienie w innej formie (umowa zlecenie, o dzieło, …), brak zatrudnienia na etacie ani działalności gospodarczej
+            .default = 0L), # poniżej będzie jeszcze do tego dodawana wartość 8L na oznaczenie rolników (którzy nie pracują w innej formie)
+          mlodociany = as.integer(any(.data$mlodoc, na.rm = TRUE)),
+          bezrobocie = as.integer(any(.data$bezrob_ibe, na.rm = TRUE)),
+          bezrobocie_staz = if_else(any(.data$bezrob_ibe, na.rm = TRUE),
+                                    as.integer(any(.data$bezrobotnystaz, na.rm = TRUE)),
+                                    NA_integer_),
+          dziecko = as.integer(any(.data$dziecko, na.rm = TRUE)),
+          macierz = as.integer(any(.data$macierz, na.rm = TRUE)),
+          wychow = as.integer(any(.data$wychow, na.rm = TRUE)),
+          pomoc_spol = as.integer(any(.data$pomoc_spol, na.rm = TRUE)),
+          emeryt_rencista = max(.data$emeryt_rencista, na.rm = TRUE),
+          niepelnosprawny = max(.data$niepelnosprawny, na.rm = TRUE),
+          wynagrodzenie = sum(.data$podst_maks, na.rm = TRUE),
+          wynagrodzenie_uop = sum(.data$podst_maks[.data$etat], na.rm = TRUE),
+          wynagrodzenie_mies = sum(.data$podst_maks / .data$udzial_dni_zatr_mies,
+                                   na.rm = TRUE),
+          wynagrodzenie_mies_uop =
+            sum(.data$podst_maks[.data$etat] / .data$udzial_dni_zatr_mies[.data$etat],
+                na.rm = TRUE),
+          wynagrodzenie_stawka =
+            sum(.data$podst_maks / .data$udzial_dni_zatr_mies / .data$wymiar_zatr,
+                na.rm = TRUE),
+          liczba_skladek = n(),
+          sr_udzial_dni_zatr = mean(.data$udzial_dni_zatr_mies, na.rm = TRUE),
+          sr_udzial_dni_zatr_uop = mean(.data$udzial_dni_zatr_mies[.data$etat], na.rm = TRUE),
+          wymiar_zatr = case_when(
+            !any(.data$etat, na.rm = TRUE) ~ NA_integer_,
+            n() == 1L & sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) == 1 ~ 1L, # zatrudnienie z jednego tytułu, w pełnym wymiarze
+            sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) == 1 ~ 2L, # zatrudnienie z wielu tytułów na łącznie pełen etat
+            n() == 1L & sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) < 1 & !all(is.na(.data$wymiar_zatr), na.rm = TRUE) ~ 3L, # zatrudnienie z jednego tytułu na mniej niż pełen etat
+            sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) < 1 & !all(is.na(.data$wymiar_zatr), na.rm = TRUE) ~ 4L, # zatrudnienie z kilku tytułów na łącznie mniej niż pełen etat
+            sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) > 1 ~ 5L, # zatrudnienie na łącznie ponad pełen etat
+            .default = 0L),
+          biernosc = any(.data$bierny_skladka, na.rm = TRUE),
+          .groups = "drop") %>%
+        full_join(t32,
+                  by = c("id_abs", "rok_abs", "okres")) %>%
+        mutate(praca = ifelse((.data$praca == 0L | is.na(.data$praca)) &
+                                !is.na(.data$ubezp_krus),
+                              8L, .data$praca))
+    }
     # straszny wskaźnik dot. młodocianych pracowników
     tMlodoc <- tbl(con, "w16") %>%
       mutate(okres = 12L*.data$rok_skladka + .data$mies_skladka) %>%
@@ -904,18 +1255,29 @@ przygotuj_tabele_posrednie <- function(
                 .groups = "drop")
     # łączenie
     # materializacje tabel do R - bez niej backend ma tendencje do zawieszania się
+    cat("\n  - materializowanie widoku z adresami zamieszkania...")
     t15 <- collect(t15) # na edycji 2026 to trwa około 2h!
-    t16m <- collect(t16m)
-    t17 <- collect(t17)
+    cat(" zakończone; ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"),
+        "\n  - materializowanie widoku ze składkami...", sep = "")
+    t16m <- collect(t16m) # na edycji 2026 trwa ~20 min.
+    cat(" zakończone; ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"),
+        "\n  - materializowanie widoku z przerwami w opłacaniu składek...", sep = "")
+    t17 <- collect(t17) # na edycji 2026 trwa ~20 min.
+    cat(" zakończone; ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"),
+        "\n- łączenie danych ze sobą...", sep = "")
     # tMlodoc nie należy materializować do R, bo dalszy kod tworzący p4 zakłada, że jest wciąż w bazie
     tabelePosrednie$p3 <- t1 %>%
       left_join(full_join(t16m, t17, by = c("id_abs", "rok_abs", "okres")) %>%
                   left_join(t15, by = c("id_abs", "rok_abs", "okres")) %>%
-                  mutate(across(-c("id_abs", "rok_abs",
+                  mutate(across(c(starts_with("wynagrodzenie"),
+                                  starts_with("sr_udzial_")), as.numeric),
+                         across(c("liczba_skladek"), as.integer),
+                         across(-c("id_abs", "rok_abs",
                                    "rok_skladka", "mies_skladka", "okres",
                                    "emeryt_rencista", "niepelnosprawny",
                                    "teryt", starts_with("wynagrodzenie"),
-                                   starts_with("powiat")),
+                                   "liczba_skladek", starts_with("sr_udzial_"),
+                                   "wymiar_zatr", starts_with("powiat")),
                                 ~if_else(is.na(.), 0L, as.integer(.))),
                          brak_danych_z_zus = FALSE) %>%
                   mutate(dziecko = case_when(.data$dziecko %in% 1L ~ 1L,
@@ -928,7 +1290,6 @@ przygotuj_tabele_posrednie <- function(
                   left_join(collect(tMlodoc),
                             by = c("id_abs", "rok_abs", "okres")),
                 by = c("id_abs", "rok_abs", "okres")) %>%
-      collect() %>%
       left_join(t34512m,
                 by = c("id_abs", "rok_abs", "okres")) %>%
       mutate(teryt_zam = floor(.data$teryt_zam / 100),
@@ -969,6 +1330,7 @@ przygotuj_tabele_posrednie <- function(
                            !(.data$praca %in% 0) &
                            .data$mlodoc_ten_sam_platnik %in% TRUE ~ 6L),
              status = case_when(
+               .data$zmarl ~ NA_character_,
                (.data$nauka2 == 1L | .data$nauka_szk_abs == 1L) &
                  .data$praca > 0L  ~ "Nauka i praca",
                (.data$nauka2 %in% 1L | .data$nauka_szk_abs == 1L) &
@@ -980,32 +1342,115 @@ przygotuj_tabele_posrednie <- function(
                   (.data$praca == 0L | is.na(.data$praca)) ~ "Bezrobocie",
                .default = "Brak danych o aktywności") %>%
                factor(c("Tylko nauka", "Nauka i praca", "Tylko praca",
-                        "Bezrobocie", "Brak danych o aktywności")),
-      ) %>%
+                        "Bezrobocie", "Brak danych o aktywności"))) %>%
       select(-"rok_skladka", -"mies_skladka", -"mlodoc_byl",
              -"mlodoc_ten_sam_platnik", -"mlodoc_ten_sam_platnik_etat") %>%
       przytnij_wynagrodzenia("wynagrodzenie", "wynagrodzenie_uop",
                              zmGrupujace = c("rok_abs", "rok"),
                              q = c(0.005, 0.995), usun0 = TRUE,
                              zachowajOryginalne = TRUE) %>%
+      left_join(t1 %>%
+                  semi_join(tbl(con, "w2") %>%
+                              filter(.data$typ_szk %in%
+                                       c("Branżowa szkoła I stopnia",
+                                         "Branżowa szkoła II stopnia",
+                                         "Technikum",
+                                         "Szkoła specjalna przysposabiająca do pracy")) %>%
+                              select("id_abs", "rok_abs") %>%
+                              distinct() %>%
+                              collect(),
+                            by = c("id_abs", "rok_abs")) %>%
+                  left_join(tDyplZaw,
+                             by = join_by(x$id_abs == y$id_abs, x$rok_abs == y$rok_abs,
+                                          x$okres >= y$okres),
+                             multiple = "last",
+                             suffix = c("", "DyplZaw")) %>%
+                  mutate(dyplom_zaw = factor(ifelse(is.na(.data$dyplom_zaw),
+                                                    "brak",
+                                                    .data$dyplom_zaw),
+                                             c("dyplom zawodowy",
+                                               "certyfikat kwalifikacji",
+                                               "brak"),
+                                             c("Dyplom zawodowy",
+                                               "Tylko certyfikat kwalifikacji",
+                                               "Brak certyfikatów i dyplomu"))) %>%
+                  select("id_abs", "rok_abs", "okres", "dyplom_zaw"),
+                by = c("id_abs", "rok_abs", "okres")) %>%
+      left_join(t1 %>%
+                  semi_join(tbl(con, "w2") %>%
+                              filter(.data$typ_szk %in%
+                                       c("Bednarska Szkoła Realna",
+                                         "Liceum ogólnokształcące",
+                                         "Technikum")) %>%
+                              select("id_abs", "rok_abs") %>%
+                              distinct() %>%
+                              collect(),
+                            by = c("id_abs", "rok_abs")) %>%
+                  left_join(tMatura,
+                            by = join_by(x$id_abs == y$id_abs, x$rok_abs == y$rok_abs,
+                                         x$okres >= y$okres),
+                            suffix = c("", "Matura")) %>%
+                  mutate(matura_zdana = as.integer(.data$matura %in% "matura")) %>%
+                  select("id_abs", "rok_abs", "okres", "matura_zdana"),
+                by = c("id_abs", "rok_abs", "okres")) %>%
       select("id_abs", "rok_abs", "rok", "miesiac", "mies_od_ukoncz", "okres",
              "status", "zmarl", "brak_danych_z_zus", "praca", "mlodociany",
              "kont_mlodoc_prac", "bezrobocie":"nauka2",
              "nauka_szk_abs", everything())
+    rm(t1, tDyplZaw, tMatura, t34512m, t15, t16m, t17)
+    stopifnot(nrow(tabelePosrednie$p3) ==
+                nrow(distinct(select(tabelePosrednie$p3,
+                                     "id_abs", "rok_abs", "okres"))))
+    if (rokMonitoringu >= 2026L) {
+      tabelePosrednie$p3 <- tabelePosrednie$p3 %>%
+        przytnij_wynagrodzenia("wynagrodzenie_mies", "wynagrodzenie_mies_uop",
+                               zmGrupujace = c("rok_abs", "rok"),
+                               q = c(0.005, 0.995), usun0 = TRUE,
+                               zachowajOryginalne = TRUE) %>%
+        przytnij_wynagrodzenia("wynagrodzenie_stawka",
+                               zmGrupujace = c("rok_abs", "rok"),
+                               q = c(0.005, 0.995), usun0 = TRUE,
+                               zachowajOryginalne = TRUE)
+    }
+    if (rokMonitoringu == 2026L) {
+      tabelePosrednie$p3 <- tabelePosrednie$p3 %>%
+        mutate(status_bez_krus = case_when(
+          .data$zmarl ~ NA_character_,
+          (.data$nauka2 == 1L | .data$nauka_szk_abs == 1L) &
+            .data$praca %in% (1L:7L)  ~ "Nauka i praca",
+          (.data$nauka2 %in% 1L | .data$nauka_szk_abs == 1L) &
+            .data$praca %in% c(0L, 8L, NA_integer_) ~ "Tylko nauka",
+          .data$nauka2 == 0L & .data$nauka_szk_abs == 0L &
+            .data$praca %in% (1L:7L) ~ "Tylko praca",
+          .data$bezrobocie == 1L & .data$nauka2 == 0L &
+            .data$nauka_szk_abs == 0L &
+            .data$praca %in% c(0L, 8L, NA_integer_) ~ "Bezrobocie",
+          .default = "Brak danych o aktywności") %>%
+            factor(c("Tylko nauka", "Nauka i praca", "Tylko praca",
+                     "Bezrobocie", "Brak danych o aktywności")))
+    }
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # P4 (dane stałe w czasie i kilka fikuśnych wskaźników) ######################
   if (przygotujP4) {
-    cat("\nPrzygotowywanie tabeli P4...")
+    cat("\nPrzygotowywanie tabeli P4 (może zająć około 1 h)...")
     # średnie wynagrodzenia w zawodach dla danego rocznika
+    if ("wynagrodzenie_mies" %in% names(tabelePosrednie$p3)) {
+      zmWynagrodzenia <- "wynagrodzenie_stawka"
+    } else {
+      zmWynagrodzenia <- "wynagrodzenie"
+    }
     tWynagrZawod <- tabelePosrednie$p3 %>%
       filter(!is.na(.data$praca),
              .data$praca > 0L,
-             !is.na(.data$wynagrodzenie)) %>%
+             !is.na(.data$wynagrodzenie),
+             .data$wynagrodzenie > 0) %>%
       left_join(collect(t2), by = c("id_abs", "rok_abs")) %>%
       group_by(.data$rok_abs, .data$kod_zaw) %>%
-      summarise(zawod_sr_wynagrodzenie =
-                  mean(as.numeric(.data$wynagrodzenie), na.rm = TRUE),
+      summarise(across(all_of(zmWynagrodzenia),
+                       list(zawod_sr_wynagrodzenie = ~mean(., na.rm = TRUE)),
+                       .names = "{.fn}"),
                 .groups = "drop")
     # liczba pracodawców w okresie od lipca roku ukończenia szkoły do grudnia
     # roku poprzedzającego monitoring
@@ -1020,12 +1465,26 @@ przygotuj_tabele_posrednie <- function(
                 by = c("id_abs", "rok_abs"),
                 copy = TRUE) %>% # robione w bazie ma mniejszy ślad pamięciowy
       group_by(.data$id_abs, .data$rok_abs) %>%
-      summarise(l_prac_ucz_uop = n_distinct(.data$id_platnika[.data$nauka %in% 1L & .data$etat]),
-                l_prac_nucz_uop = n_distinct(.data$id_platnika[.data$nauka %in% 0L & .data$etat]),
-                l_prac_nucz_nuop = n_distinct(.data$id_platnika[.data$nauka %in% 0L & .data$netat]),
+      summarise(l_prac_ucz_uop = n_distinct(.data$id_platnika[.data$nauka %in% 1L & .data$etat], na.rm = TRUE),
+                l_prac_nucz_uop = n_distinct(.data$id_platnika[.data$nauka %in% 0L & .data$etat], na.rm = TRUE),
+                l_prac_nucz_nuop = n_distinct(.data$id_platnika[.data$nauka %in% 0L & .data$netat], na.rm = TRUE),
                 .groups = "drop")
     # łączenie i zapis
-    tabelePosrednie$p4 <- tbl(con, "w2") %>%
+    t1 <- tbl(con, "w1") %>%
+      left_join(tbl(con, "w14") %>%
+                  mutate(zmarl_mies_od_ukoncz =
+                           (12L*.data$rok_zgonu + .data$mies_zgonu) -
+                           (12L*.data$rok_abs + 6L)) %>%
+                  select("id_abs", "rok_abs", "zmarl_mies_od_ukoncz"),
+                by = c("id_abs", "rok_abs"))
+    if (rokMonitoringu >= 2026L) {
+      t1 <- t1 %>%
+        left_join(tbl(con, "w29"),
+                  by = "kraj_pochodzenia")
+    }
+    tabelePosrednie$p4 <- inner_join(t1,
+                                     tbl(con, "w2"),
+                                     by = c("id_abs", "rok_abs")) %>%
       left_join(t20, by = "kod_zaw") %>%
       left_join(tbl(con, "w25") %>%
                   rename(teryt_pow_szk = "teryt_pow",
@@ -1059,11 +1518,13 @@ przygotuj_tabele_posrednie <- function(
                  "Niemłodociani w Branżowej szkole I stopnia",
                .default = .data$typ_szk)) %>%
       select("id_abs", "rok_abs", "rok_ur", "plec",
+             any_of(c("kraj_pochodzenia", "region_pochodzenia")), "zmarl_mies_od_ukoncz",
              "id_szk", "mlodoc_byl", "typ_szk", "szk_specjalna", "typ_szk_mlodoc",
              "teryt_pow_szk", "nazwa_pow_szk", "teryt_woj_szk", "nazwa_woj_szk",
              "nazwa_makroreg_szk", "nazwa_reg_szk", "nazwa_podreg_szk", "nts_podreg_szk",
              "lp", "kod_zaw", "nazwa_zaw", "branza",
-             "kod_isced", "grupa_isced", "podgrupa_isced", "nazwa_isced") %>%
+             "kod_isced", "grupa_isced", "podgrupa_isced", "nazwa_isced",
+             any_of(c("forma_ksztalc", "nauka_poza_szkola"))) %>%
       left_join(tPracodawcy, by = c("id_abs", "rok_abs")) %>%
       collect() %>%
       left_join(tWynagrZawod, by = c("rok_abs", "kod_zaw")) %>%
@@ -1097,7 +1558,7 @@ przygotuj_tabele_posrednie <- function(
                                     sort(unique(.data$plec))))),
              typ_szk = factor(.data$typ_szk,
                               unique(c("Liceum ogólnokształcące",
-                                       "LIceum ogólnokształcące dla dorosłych",
+                                       "Liceum ogólnokształcące dla dorosłych",
                                        "Technikum",
                                        "Branżowa szkoła II stopnia",
                                        "Szkoła policealna",
@@ -1106,7 +1567,7 @@ przygotuj_tabele_posrednie <- function(
                                        sort(unique(.data$typ_szk))))),
              typ_szk_mlodoc = factor(.data$typ_szk_mlodoc,
                                      unique(c("Liceum ogólnokształcące",
-                                              "LIceum ogólnokształcące dla dorosłych",
+                                              "Liceum ogólnokształcące dla dorosłych",
                                               "Technikum",
                                               "Branżowa szkoła II stopnia",
                                               "Szkoła policealna",
@@ -1115,7 +1576,8 @@ przygotuj_tabele_posrednie <- function(
                                               "Szkoła specjalna przysposabiająca do pracy",
                                               sort(unique(.data$typ_szk))))),
              across(starts_with("abs_w_"), ~if_else(is.na(.), FALSE, .)),
-             across(starts_with("l_prac_"), ~if_else(is.na(.), 0L, as.integer(.))))
+             across(starts_with("l_prac_"), ~if_else(is.na(.), 0L, as.integer(.))),
+             across(where(is.character), as.character)) # pozbywanie się enumerowanych typów z bazy
     # identyfikacja duplikatów
     tabelePosrednie$p4 <- tabelePosrednie$p4 %>%
       add_count(.data$id_abs, .data$rok_abs, .data$id_szk,
@@ -1136,59 +1598,327 @@ przygotuj_tabele_posrednie <- function(
         dodaj_wskazniki_dyplomy(tabelePosrednie$p1, maksMiesOdUkoncz = -3L,
                                 rokMonitoringu = rokMonitoringu) %>%
         dodaj_wskazniki_kontynuacje(tabelePosrednie$p2,
-                                    miesOdUkoncz = c(6L, 18L, 30L, 42L, 54L)) %>%
+                                    miesOdUkoncz = c(6L, 18L, 30L, 42L, 54L,
+                                                     66L, 78L)) %>%
         select(-any_of(c("branza_kont_bsii18", "branza_kont_bsii30",
                          "branza_kont_bsii42", "branza_kont_bsii54",
+                         "branza_kont_bsii66", "branza_kont_bsii78",
                          "dziedzina_kont30", "dziedzina_kont42",
                          "dyscyplina_kont30", "dyscyplina_kont42"))) %>%
-        dodaj_wskazniki_prace(tabelePosrednie$p3))
+        dodaj_wskazniki_prace(tabelePosrednie$p3,
+                              zmWynagrodzenie = ifelse(rokMonitoringu < 2026L,
+                                                       "wynagrodzenie",
+                                                       "wynagrodzenie_stawka")))
+    if (rokMonitoringu == 2026L) {
+      tabelePosrednie$p4 <- tabelePosrednie$p4 %>%
+        select(-c("praca_nauka_r0_wrzgru", "praca_bez_nauki_r0_wrzgru",
+                  "bezrobocie_r0_wrzgru")) %>%
+        dodaj_wskazniki_prace(tabelePosrednie$p3,
+                              zmWynagrodzenie = "wynagrodzenie")
+    }
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
+  }
+  # Zmniejszanie precyzji PKD ##################################################
+  if (przygotujP5 | przygotujP7) {
+    t18 <- tbl(con, "w18") %>%
+      select("id_platnika", "pkd") %>%
+      collect() %>%
+      mutate(pkd = sub("^([[:digit:]]{2})[[:digit:]]{2}([[:alpha:]])$",
+                       "\\1\\2", .data$pkd))
+    t18 <- copy_to(con, t18, overwrite = TRUE)
   }
   # P5 (absolwento-miesiąco-pracodawcy) ########################################
   if (przygotujP5) {
     cat("\nPrzygotowywanie tabeli P5...")
-    tabelePosrednie$p5 <- t16 %>%
-      group_by(.data$id_abs, .data$rok_abs, .data$id_platnika,
-               .data$rok_skladka, .data$mies_skladka) %>%
-      summarise(
-        okres = 12L*.data$rok_skladka + .data$mies_skladka,
-        forma_zatrudnienia = case_when(
-          all(.data$kod_zus %in% c(1298L, 1299L), na.rm = TRUE) ~ 0L, # tu płatnikiem jest ZUS, wartości 0 zostaną niżej odfiltrowane
-          any(.data$etat, na.rm = TRUE) ~ 1L,
-          any(.data$samoz, na.rm = TRUE) ~ 2L,
-          any(.data$netat, na.rm = TRUE) ~ 3L,
-          .default = 0L), # te wartości zostaną niżej odfiltrowane
-        mlodociany = as.integer(any(.data$mlodoc, na.rm = TRUE)),
-        wynagrodzenie = sum(.data$podst_maks, na.rm = TRUE),
-        wynagrodzenie_uop = sum(.data$podst_maks[.data$etat], na.rm = TRUE),
-        .groups = "drop") %>%
+    if (rokMonitoringu < 2026L) {
+      tabelePosrednie$p5 <- t16 %>%
+        group_by(.data$id_abs, .data$rok_abs, .data$id_platnika,
+                 .data$rok_skladka, .data$mies_skladka) %>%
+        summarise(
+          okres = 12L*.data$rok_skladka + .data$mies_skladka,
+          forma_zatrudnienia = case_when(
+            all(.data$kod_zus %in% c(1298L, 1299L), na.rm = TRUE) ~ 0L, # tu płatnikiem jest ZUS, wartości 0 zostaną niżej odfiltrowane
+            any(.data$etat, na.rm = TRUE) ~ 1L,
+            any(.data$samoz, na.rm = TRUE) ~ 2L,
+            any(.data$netat, na.rm = TRUE) ~ 3L,
+            .default = 0L), # te wartości zostaną niżej odfiltrowane
+          mlodociany = as.integer(any(.data$mlodoc, na.rm = TRUE)),
+          wynagrodzenie = sum(.data$podst_maks, na.rm = TRUE),
+          wynagrodzenie_uop = sum(.data$podst_maks[.data$etat], na.rm = TRUE),
+          .groups = "drop")
+    } else {
+      tabelePosrednie$p5 <- t16 %>%
+        group_by(.data$id_abs, .data$rok_abs, .data$id_platnika,
+                 .data$rok_skladka, .data$mies_skladka) %>%
+        summarise(
+          okres = 12L*.data$rok_skladka + .data$mies_skladka,
+          forma_zatrudnienia = case_when(
+            all(.data$kod_zus %in% c(1298L, 1299L), na.rm = TRUE) ~ 0L, # tu płatnikiem jest ZUS, wartości 0 zostaną niżej odfiltrowane
+            any(.data$etat, na.rm = TRUE) ~ 1L,
+            any(.data$samoz, na.rm = TRUE) ~ 2L,
+            any(.data$netat, na.rm = TRUE) ~ 3L,
+            .default = 0L), # te wartości zostaną niżej odfiltrowane
+          mlodociany = as.integer(any(.data$mlodoc, na.rm = TRUE)),
+          wynagrodzenie = sum(.data$podst_maks, na.rm = TRUE),
+          wynagrodzenie_uop = sum(.data$podst_maks[.data$etat], na.rm = TRUE),
+          wynagrodzenie_mies = sum(.data$podst_maks / .data$udzial_dni_zatr_mies,
+                                   na.rm = TRUE),
+          wynagrodzenie_mies_uop =
+            sum(.data$podst_maks[.data$etat] / .data$udzial_dni_zatr_mies[.data$etat],
+                na.rm = TRUE),
+          wynagrodzenie_stawka =
+            sum(.data$podst_maks / .data$udzial_dni_zatr_mies / .data$wymiar_zatr,
+                na.rm = TRUE),
+          liczba_skladek = n(),
+          sr_udzial_dni_zatr = mean(.data$udzial_dni_zatr_mies, na.rm = TRUE),
+          sr_udzial_dni_zatr_uop = mean(.data$udzial_dni_zatr_mies[.data$etat], na.rm = TRUE),
+          wymiar_zatr = case_when(
+            !any(.data$etat, na.rm = TRUE) ~ NA_integer_,
+            n() == 1L & sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) == 1 ~ 1L, # zatrudnienie z jednego tytułu, w pełnym wymiarze
+            sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) == 1 ~ 2L, # zatrudnienie z wielu tytułów na łącznie pełen etat
+            n() == 1L & sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) < 1 & !all(is.na(.data$wymiar_zatr), na.rm = TRUE) ~ 3L, # zatrudnienie z jednego tytułu na mniej niż pełen etat
+            sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) < 1 & !all(is.na(.data$wymiar_zatr), na.rm = TRUE) ~ 4L, # zatrudnienie z kilku tytułów na łącznie mniej niż pełen etat
+            sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) > 1 ~ 5L, # zatrudnienie na łącznie ponad pełen etat
+            .default = 0L),
+          .groups = "drop")
+    }
+    tabelePosrednie$p5 <- tabelePosrednie$p5 %>%
       filter(.data$forma_zatrudnienia > 0L) %>%
-      left_join(tbl(con, "w18") %>%
-                  select("id_platnika", "pkd"),
+      left_join(t18,
                 by = "id_platnika") %>%
       collect() %>%
-      mutate(pkd = sub("^([[:digit:]]{2})[[:digit:]]{2}([[:alpha:]])$",
-                       "\\1\\2", .data$pkd),
-             mies_od_ukoncz = .data$okres - rokmiesiac2okres(.data$rok_abs, 6L)) %>%
+      mutate(mies_od_ukoncz = .data$okres - rokmiesiac2okres(.data$rok_abs, 6L),
+             across(where(is.numeric), as.numeric),
+             liczba_skladek = as.integer(.data$liczba_skladek)) %>%
       select("id_abs", "rok_abs", rok = "rok_skladka", miesiac = "mies_skladka",
-             "mies_od_ukoncz", "okres", lp_pracod = "id_platnika",
+             "mies_od_ukoncz", "okres", "id_platnika",
              pkd_pracod = "pkd", "forma_zatrudnienia", "mlodociany",
-             "wynagrodzenie", "wynagrodzenie_uop") %>%
-      arrange(.data$id_abs, .data$rok_abs, .data$okres) %>%
-      group_by(.data$id_abs, .data$rok_abs) %>%
-      mutate(lp_pracod = as.numeric(factor(.data$lp_pracod,
-                                           unique(.data$lp_pracod)))) %>%
-      ungroup()
+             starts_with("wynagrodzenie"),
+             any_of(c("liczba_skladek", "sr_udzial_dni_zatr",
+                      "sr_udzial_dni_zatr_uop", "wymiar_zatr")))
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
+  # P6 (dane szkół - w tym kontynuacji - i uczelni) ############################
   if (przygotujP6) {
-    cat("\nTabela P6 przygotowana.")
-    tabelePosrednie$p6 <- collect(t26) %>%
-      mutate(organ_prowadzacy_teryt = .data$organ_prowadzacy_teryt / 100L,
-             across(where(is.character), as.character)) %>% # pozbywanie się typów zdefiniowanych w bazie
-      select("id_szk":"specyfika", starts_with("organ_rejestrujacy_"),
-             "organ_sposob_ewidencjonowania", "rok_szk":"poczta",
-             starts_with("organ_prowadzacy_"), everything())
+    cat("\nTabela P6...")
+    if (rokMonitoringu < 2026L) {
+      tabelePosrednie$p6 <- collect(t26) %>%
+        mutate(across(where(is.character), as.character)) # pozbywanie się typów zdefiniowanych w bazie
+    } else {
+      tabelePosrednie$p6 <- bind_rows(
+        collect(t26) %>%
+          mutate(across(where(is.character), as.character)), # pozbywanie się typów zdefiniowanych w bazie
+        collect(t30) %>%
+          mutate(across(where(is.character), as.character))) # pozbywanie się typów zdefiniowanych w bazie
+    }
+    tabelePosrednie$p6 <- tabelePosrednie$p6 %>%
+      mutate(organ_prowadzacy_teryt = .data$organ_prowadzacy_teryt / 100L) %>%
+      select("id_szk", any_of("id_ucz"), "szk_ma_abs":"typ_szk_rspo",
+             starts_with("organ_rejestrujacy_"),
+             "organ_sposob_ewidencjonowania", "rok_szk":"teryt_gmi_szk",
+             "teryt_pow_szk", any_of(c("kraj_ucz", "rodzaj_gmi_ucz")),
+             "wojewodztwo_szk":"poczta", starts_with("organ_prowadzacy_"),
+             "publicznosc":"specyfika", any_of("typ_ucz"), everything())
+    rm(t26, t30)
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
+    cat(" przygotowana. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
+  }
+  # P7 zawody wykonywane #######################################################
+  if (przygotujP7) {
+    cat("\nPrzygotowywanie tabeli P7...")
+    tabelePosrednie$p7 <- tbl(con, "w2") %>%
+      select("id_abs", "rok_abs", "kod_zaw") %>%
+      distinct() %>%
+      inner_join(t16,
+                 by = c("id_abs", "rok_abs")) %>%
+      filter(!is.na(.data$kod_zaw_praca)) %>%
+      left_join(t18,
+                by = "id_platnika") %>%
+      group_by(.data$id_abs, .data$rok_abs, .data$rok_skladka,
+               .data$mies_skladka, .data$kod_zaw_praca, .data$pkd) %>%
+      summarise(wynagrodzenie_mies =
+                  sum(.data$podst_maks / .data$udzial_dni_zatr_mies, na.rm = TRUE),
+                udzial_dni_zatr_mies =
+                  sum(.data$udzial_dni_zatr_mies, na.rm = TRUE),
+                udzial_dni_zatr_mies_waz_wymiar =
+                  sum(.data$udzial_dni_zatr_mies*.data$wymiar_zatr, na.rm = TRUE),
+                .groups = "drop") %>%
+      collect() %>%
+      mutate(okres = 12L*.data$rok_skladka + .data$mies_skladka,
+             mies_od_ukoncz = .data$okres - rokmiesiac2okres(.data$rok_abs, 6L)) %>%
+      select("id_abs", "rok_abs", rok = "rok_skladka",
+             miesiac = "mies_skladka", "mies_od_ukoncz", "okres",
+             everything())
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
+    cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
+  }
+  # P8 wyniki procentowe egzaminow #############################################
+  if (przygotujP8) {
+    cat("\nPrzygotowywanie tabeli P8...")
+    tabelePosrednie$p8 <- bind_rows(
+      tbl(con, "w27") %>%
+        collect() %>%
+        rename_with(~sub("_e8$", "_egz", .)) %>%
+        mutate(across(where(is.character), as.character), # pozbywanie się typów zdefiniowanych w bazie
+               egzamin = "egzamin ósmoklasisty",
+               forma_zdawania = "pisemna"),
+      tbl(con, "w28") %>%
+        collect() %>%
+        rename_with(~sub("_matura$", "_egz", .)) %>%
+        mutate(across(where(is.character), as.character), # pozbywanie się typów zdefiniowanych w bazie
+               egzamin = "matura"),
+      tbl(con, "w810") %>%
+        left_join(tbl(con, "w810d") %>%
+                    select("id_abs", "rok_abs", "rok_egz_zaw", "sesja_egz_zaw",
+                           "kod_kwal") %>%
+                    distinct() %>%
+                    mutate(dostos_form_egz = TRUE),
+                  by = c("id_abs", "rok_abs", "rok_egz_zaw", "sesja_egz_zaw",
+                         "kod_kwal")) %>%
+        select("id_abs", "rok_abs", rok_egz = "rok_egz_zaw",
+               termin_egz = "sesja_egz_zaw", przedmiot_egz = "kod_kwal",
+               "dostos_form_egz", pisemna = "wynik_pisemn_egz_zaw",
+               praktyczna = "wynik_prakt_egz_zaw") %>%
+        collect() %>%
+        mutate(dostos_form_egz = .data$dostos_form_egz %in% TRUE,
+               egzamin = "egzamin zawodowy") %>%
+        pivot_longer(c("pisemna", "praktyczna"),
+                     names_to = "forma_zdawania", values_to = "wynik_egz")
+    ) %>%
+      mutate(stan_zdawania_egz = factor(.data$stan_zdawania_egz,
+                                        c("Przystąpił", "Finalista", "Laureat",
+                                          "Nieobecny",
+                                          "Nie przeprowadzano egzaminu",
+                                          "Unieważniony",
+                                          "Zwolniony", "Przerwany")),
+             poziom_egz = factor(.data$poziom_egz,
+                                 c("P", "R", "D", "Z", "N"),
+                                 c("podstawowy", "rozszerzony", "dwujęzyczny",
+                                   "zestaw zadań w języku obcym", "ndt."))) %>%
+      select("id_abs", "rok_abs", "egzamin", "rok_egz":"przedmiot_egz",
+             "poziom_egz", forma_zdawania_egz = "forma_zdawania",
+             "stan_zdawania_egz", starts_with("dostos_"), everything())
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
+    cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
+  }
+  # P9 orzeczenia i dostosowania na egzaminach #################################
+  if (przygotujP9) {
+    cat("\nPrzygotowywanie tabeli P9...")
+    t31 <- tbl(con, "w2") %>%
+      select("id_abs", "rok_abs", "typ_szk") %>%
+      distinct() %>%
+      inner_join(tbl(con, "w31"),
+                 by = c("id_abs", "rok_abs")) %>%
+      mutate(data_min =
+               as.Date(paste0(.data$rok_abs -
+                                case_when(.data$typ_szk == "Bednarska Szkoła Realna" ~ 4L,
+                                          .data$typ_szk == "Branżowa szkoła I stopnia" ~ 3L,
+                                          .data$typ_szk == "Branżowa szkoła II stopnia" ~ 2L,
+                                          .data$typ_szk == "Liceum ogólnokształcące" ~ 4L,
+                                          .data$typ_szk == "Szkoła policealna" ~ 3L,
+                                          .data$typ_szk == "Szkoła specjalna przysposabiająca do pracy" ~ 3L,
+                                          .data$typ_szk == "Technikum" ~ 5L),
+                              "-09-01")),
+             orzeczenie_data_do =
+               if_else(.data$orzeczenie_data_do > as.Date(paste0(.data$rok_abs, "-06-30")),
+                       as.Date(paste0(.data$rok_abs, "-06-30")),
+                       .data$orzeczenie_data_do)) %>%
+      filter(.data$orzeczenie_data_do > .data$orzeczenie_data_od,
+             .data$orzeczenie_data_do > .data$data_min) %>%
+      mutate(orzeczenie_data_od =
+               if_else(.data$orzeczenie_data_od < .data$data_min,
+                       .data$data_min, .data$orzeczenie_data_od)) %>%
+      collect() %>%
+      add_count(.data$id_abs, .data$rok_abs, .data$typ_szk,
+                across(starts_with("niepelnosprawnosc")),
+                name = "lOrzeczen")
+    t31 <- bind_rows(t31 %>%
+                       filter(.data$lOrzeczen == 1L),
+                     # zabezpieczanie się przed nakładającymi się okresami orzeczeń - na wszelki wypadek, bo w edycji 2026 nie stwierdzono ich występowania
+                     t31 %>%
+                       filter(.data$lOrzeczen > 1L) %>%
+                       arrange(.data$id_abs, .data$rok_abs,
+                               across(starts_with("niepelnosprawnosc")),
+                               .data$orzeczenie_data_od) %>%
+                       group_by(.data$id_abs, .data$rok_abs, .data$typ_szk,
+                                across(starts_with("niepelnosprawnosc"))) %>%
+                       mutate(orzeczenie_data_od2 =
+                                if_else(.data$orzeczenie_data_od <
+                                          lag(.data$orzeczenie_data_do,
+                                              n = 1, default = as.Date("0001-01-01")),
+                                        lead(.data$orzeczenie_data_do, n = 1),
+                                        .data$orzeczenie_data_od),
+                              orzeczenie_data_do2 =
+                                if_else(.data$orzeczenie_data_do >
+                                          lead(.data$orzeczenie_data_od,
+                                               n = 1, default = as.Date("9999-12-31")),
+                                        lead(.data$orzeczenie_data_od, n = 1),
+                                        .data$orzeczenie_data_do)) %>%
+                       ungroup() %>%
+                       select(-c("orzeczenie_data_od", "orzeczenie_data_do")) %>%
+                       rename(orzeczenie_data_od = "orzeczenie_data_od2",
+                              orzeczenie_data_do = "orzeczenie_data_do2") %>%
+                       distinct()) %>%
+      mutate(orzeczenie_dlugosc = as.integer(difftime(.data$orzeczenie_data_do,
+                                                      .data$orzeczenie_data_od,
+                                                      units = "days")) + 1L) %>%
+      group_by(.data$id_abs, .data$rok_abs, .data$typ_szk,
+               across(starts_with("niepelnosprawnosc"))) %>%
+      summarise(orzeczenia_dlugosc = sum(.data$orzeczenie_dlugosc, na.rm = TRUE),
+                .groups = "drop") %>%
+      mutate(orzeczenia_min_2lata = .data$orzeczenia_dlugosc >= 660L,
+             across(where(is.logical), as.character)) %>%
+      pivot_longer(cols = starts_with("niepelnosprawnosc"),
+                   names_to = "niepelnosprawnosc", values_to = "czy_jest") %>%
+      filter(.data$czy_jest != "FALSE") %>%
+      mutate(czy_sprzezona = grepl("_sprz[[:digit:]]+$", .data$niepelnosprawnosc) |
+               .data$czy_jest == "z niepełnosprawnościami sprzężonymi",
+             niepelnosprawnosc = case_when(
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz2" ~ "niewidomi",
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz3" ~ "słabowidzący",
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz4" ~ "niesłyszący",
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz5" ~ "słabosłyszący",
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz6" ~ "z niepełnosprawnością intelektualną w stopniu lekkim",
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz17" ~ "z niepełnosprawnością ruchową w tym z afazją",
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz18" ~ "z autyzmem w tym z zespołem Aspergera",
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz20" ~ "z niepełnosprawnością intelektualną w stopniu umiarkowanym",
+               .data$niepelnosprawnosc == "niepelnosprawnosc_sprz21" ~ "z niepełnosprawnością intelektualną w stopniu znacznym",
+               .default = .data$niepelnosprawnosc),
+             niepelnosprawnosc = ifelse(.data$niepelnosprawnosc == "niepelnosprawnosc",
+                                        .data$czy_jest, .data$niepelnosprawnosc)) %>%
+      select(-"czy_jest")
+    tabelePosrednie$p9 <- bind_rows(
+      t31,
+      bind_rows(tbl(con, "w27d") %>%
+                  select("id_abs", "rok_abs", rok_egz = "rok_e8",
+                         dostos_form_egz = "dostos_form_opis_e8",
+                         dostos_war_egz = "dostos_war_e8") %>%
+                  distinct() %>%
+                  collect(),
+                tbl(con, "w810d") %>%
+                  filter(.data$dostosowanie_egz_zaw != "brak") %>%
+                  mutate(dostos_war_egz = FALSE) %>%
+                  select("id_abs", "rok_abs", rok_egz = "rok_egz_zaw",
+                         dostos_form_egz = "dostosowanie_egz_zaw",
+                         "dostos_war_egz") %>%
+                  distinct() %>%
+                  collect(),
+                tbl(con, "w28d") %>%
+                  select("id_abs", "rok_abs", rok_egz = "rok_matura",
+                         dostos_form_egz = "dostos_form_opis_matura",
+                         dostos_war_egz = "dostos_war_matura") %>%
+                  distinct() %>%
+                  collect()) %>%
+        filter(.data$rok_egz <= .data$rok_abs) %>%
+        group_by(.data$id_abs, .data$rok_abs, .data$rok_egz,
+                 .data$dostos_form_egz) %>%
+        summarise(dostos_war_egz = any(.data$dostos_war_egz, na.rm = TRUE),
+                  .groups = "drop")
+    )
+    if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
+    cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
   # kończenie ##################################################################
   cat("\nKoniec: ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), "\n", sep = "")

@@ -47,12 +47,6 @@ usun_duplikaty <- function(x, p4 = NULL, duplikatWSzkole = TRUE,
               "Wszystkie elementy listy przekazanej argumentem `x`, z wyjątkiem `p6`,  nie mogą zawierać braków danych w kolumnach 'id_abs' ani 'rok_abs'." =
                 all(sapply(x[names(x) != "p6"],
                            function(x) {return(!anyNA(x[ c("id_abs", "rok_abs")]))})))
-    # to niżej proforma, bo p6 i tak jest potem ignorowana (zwracana bez zmian)
-    if ("p6" %in% names(x)) {
-      stopifnot(all(c("id_szk", "rok_szk") %in% names(x$p6)),
-                !anyNA(x$p6[, c("id_szk", "rok_szk")]),
-                !any(duplicated(x$p6[, c("id_szk", "rok_szk")])))
-    }
     xLista <- TRUE
     p4 <- x$p4
   } else {
@@ -120,10 +114,12 @@ usun_duplikaty <- function(x, p4 = NULL, duplikatWSzkole = TRUE,
     wszystkieDuplikaty <- wszystkieDuplikaty %>%
       full_join(duplikatWieleSzkolTab, by = c("id_abs", "rok_abs"))
   }
+  lRekordowP4Przed <- nrow(p4)
   p4 <- p4 %>%
     anti_join(duplikatWSzkoleTab, by = c("id_abs", "rok_abs", "id_szk"))
   p4 <- p4 %>%
     anti_join(duplikatWieleSzkolTab, by = c("id_abs", "rok_abs"))
+  lUsunietychRekordowP4 <- lRekordowP4Przed - nrow(p4)
   x[names(x) != "p6"] <- lapply(x[names(x) != "p6"],
                                 semi_join, y = p4[, c("id_abs", "rok_abs")],
                                 by = c("id_abs", "rok_abs"))
@@ -151,7 +147,7 @@ usun_duplikaty <- function(x, p4 = NULL, duplikatWSzkole = TRUE,
                    paste(format(usunieciWieleSzkol, big.mark = "'"),
                          " spełniających kryterium występowania w kilku różnych szkołach"),
                    ""), "), którzy byli reprezentowani przez ",
-            format(nrow(wszystkieDuplikaty), big.mark = "'"),
+            format(lUsunietychRekordowP4, big.mark = "'"),
             " rekordów w tabeli 'p4'.")
   } else {
     message("Nie wykryto żadnych duplikatów.")

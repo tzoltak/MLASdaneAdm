@@ -9,7 +9,7 @@
 #' przekształcane są tak, że wartości na zewnątrz od obliczonych progów
 #' zamieniane są na wartości progów.
 #' @param dane ramka danych, typowo tabela *pośrednia* P3
-#' @param zmKryterium ciąch znaków - nazwa zmiennej, na podstawie rozkładu
+#' @param zmKryterium ciąg znaków - nazwa zmiennej, na podstawie rozkładu
 #' której mają zostać obliczone progi
 #' @param zmZastosuj opcjonalnie wektor ciągów znaków - nazwy zmiennych, których
 #' wartości mają zostać przycięte (oprócz zmiennej podanej argumentem

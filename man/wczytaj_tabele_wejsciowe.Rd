@@ -12,7 +12,8 @@ wczytaj_tabele_wejsciowe(
   usunAbsWKilkuZaw = TRUE,
   plikLogu = NULL,
   nieWczytujDanychZUS = FALSE,
-  wersja = c("2021", "2026")
+  wersja = c("2021", "2026"),
+  rokMonitoringu = NA_integer_
 )
 }
 \arguments{
@@ -49,6 +50,10 @@ niż te z ZUS}
 \item{wersja}{ciąg znaków wskazujący na wersję struktury tabel wejściowych -
 możliwe wartości to "2021" (dane z edycji 2021-2025) lub "2026" (dane
 z edycji 2026 i nowszych)}
+
+\item{rokMonitoringu}{rok, w którym prowadzony jest monitoring - domyślna
+wartość, tj. brak danych, wskazuje, że ma on zostać zgadnięty z danych (jako
+maksimum z \code{ROK_ABS} w \emph{W1.csv} powiększone o jeden)}
 }
 \value{
 \code{NULL}

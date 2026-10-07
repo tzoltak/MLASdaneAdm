@@ -6,11 +6,11 @@
 \usage{
 przygotuj_tabele_posrednie(
   baza,
-  rokMonitoringu,
+  rokMonitoringu = NA_integer_,
   okresOd = 0L,
   okresDo = rokmiesiac2okres(rokMonitoringu, 3L),
-  okresyP2 = seq(rokmiesiac2okres(rokMonitoringu - 5L, 12L),
-    rokmiesiac2okres(rokMonitoringu - 1L, 12L), by = 6L),
+  okresyP2 = seq(rokmiesiac2okres(rokMonitoringu - ifelse(rokMonitoringu < 2026L, 5L,
+    7L), 12L), rokmiesiac2okres(rokMonitoringu - 1L, 12L), by = 6L),
   imputujDateKoncaSzkoly = as.Date(paste0(rokMonitoringu, "-08-31")),
   imputujDateKoncaStudiow = as.Date(paste0(rokMonitoringu, "-09-30")),
   imputujDateKoncaAdresu = as.Date(paste0(rokMonitoringu, "-05-31")),
@@ -20,7 +20,11 @@ przygotuj_tabele_posrednie(
   przygotujP3 = TRUE,
   przygotujP4 = przygotujP3,
   przygotujP5 = TRUE,
-  przygotujP6 = TRUE
+  przygotujP6 = rokMonitoringu >= 2026L,
+  przygotujP7 = rokMonitoringu >= 2026L,
+  przygotujP8 = rokMonitoringu >= 2026L,
+  przygotujP9 = rokMonitoringu >= 2026L,
+  zapisujPoKazdejTabeliPosredniej = FALSE
 )
 }
 \arguments{
@@ -31,7 +35,9 @@ danych, w której mają zostać zapisane wczytywane dane}
 \item{rokMonitoringu}{rok, w którym prowadzony jest monitoring (ma znaczenie
 dla ustalenia adekwatnych przedziałów czasu, dla których mają zostać
 obliczone wskaźniki, a na podstawie samych danych funkcja nie ma jak
-go odgadnąć, nie narażając się na błędy)}
+go odgadnąć, nie narażając się na błędy) - domyślna wartość, tj. brak danych,
+wskazuje, że ma on zostać zgadnięty z danych (jako maksimum z \code{rok_abs}
+w tabeli \emph{w1} powiększone o jeden)}
 
 \item{okresOd}{opcjonalnie liczba całkowita - liczbę miesięcy, o którą
 początek okresu objętego wskaźnikami w tabeli P3 ma być
@@ -98,6 +104,24 @@ przygotowana, konieczne jest również przygotowanie tabeli P3}
 \item{przygotujP6}{opcjonalnie wartość logiczna - czy przygotować
 tabelę \emph{pośrednią} P6? (umożliwia wyłączenie przygotowania wybranej
 tabeli w ramach danego wywołania funkcji);}
+
+\item{przygotujP7}{opcjonalnie wartość logiczna - czy przygotować
+tabelę \emph{pośrednią} P7? (umożliwia wyłączenie przygotowania wybranej
+tabeli w ramach danego wywołania funkcji);}
+
+\item{przygotujP8}{opcjonalnie wartość logiczna - czy przygotować
+tabelę \emph{pośrednią} P9? (umożliwia wyłączenie przygotowania wybranej
+tabeli w ramach danego wywołania funkcji);}
+
+\item{przygotujP9}{opcjonalnie wartość logiczna - czy przygotować
+tabelę \emph{pośrednią} P9? (umożliwia wyłączenie przygotowania wybranej
+tabeli w ramach danego wywołania funkcji);}
+
+\item{zapisujPoKazdejTabeliPosredniej}{wartość logiczna - jeśli \code{TRUE}, po
+przygotowaniu każdej kolejnej tabeli \emph{pośredniej} lista tabeli \emph{pośrednich}
+zostanie zapisana w katalogu roboczym w pliku \emph{tabele-posrednie-temp.RData};
+pozwala to uniknąć frustracji związanych z ew. \emph{wybuchaniem} procesu,
+w szczególności w wyniku kłopotów z nie dość dużą ilością RAMu;}
 }
 \value{
 lista ramek danych z przygotowanymi tabelami

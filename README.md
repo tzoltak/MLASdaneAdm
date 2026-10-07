@@ -25,10 +25,11 @@ Dokładnie w ten sam sposób można przeprowadzić aktualizację pakietu do najn
 
 ## Funkcje pakietu
 
-Pakiet udostępnia obecnie trzy podstawowe funkcje:
+Pakiet udostępnia obecnie następujące podstawowe funkcje:
 
 1.  `przygotuj_dane_do_w19()` pozwala przygotować dane ze wskaźnikami bezrobocia i przecietnych miesięcznych wynagrodzeń w formie, w jakiej są zwracane przez `MLASZdane::pobierz_dane_bdl` do formatu wymaganego dla tabeli *wejściowej* W19 (przykład użycia dostępny w dokumentacji funkcji: `?przygotuj_dane_do_w19`).
-2.  `przygotuj_dane_do_w26()` pozwala przygotować, na podstawie eksportu z publicznego API WWW RSPO, zestawienie danych wszystkich szkół (i placówek oświatowych) objętych SIO, które występują w danych z danej edycji monitoringu, w formatu wymaganym dla tabeli *wejściowej* W26.
+2.  `przygotuj_dane_do_w26()` pozwala przygotować, na podstawie eksportu z hurtowni SIO (lub ew. publicznego API WWW RSPO), zestawienie danych wszystkich szkół (i placówek oświatowych) objętych SIO, które występują w danych z danej edycji monitoringu, w formacie wymaganym dla tabeli *wejściowej* W26.
+2.  `przygotuj_dane_do_w30()` pozwala przygotować, na podstawie eksportu z publicznego API RAD-on oraz pliku *SUCZELNIA.csv*, zestawienie danych wszystkich szkół wyższych (i ich filii), które występują w danych z danej edycji monitoringu, w formacie wymaganym dla tabeli *wejściowej* W30.
 3.  `wczytaj_tabele_wejsciowe()` odpowiada za zdiagnozowanie spójności zbiorów danych CSV zawierających poszczególne zestawienia wyeksportowane z systemów informatycznych zawierających informacje wykorzystywane w monitoringu (przez gestorów tych systemów) oraz wczytanie ich, po niewielkiej obróbce, do relacyjnej bazy danych,
 4.  `przygotuj_tabele_posrednie()` odpowiada za przygotowanie na podstawie danych wczytanych do relacyjnej bazy danych w poprzednim kroku 4 *tabel pośrednich*, które zawierają zestawienia wskaźników opisujących sytuację absolwentów, które są już bezpośrednio użyteczne analitycznie:
     1) *p1* - zestawienie uzyskanych przez absolwentów certyfikatów i dyplomów (rekord stanowi absolwento-certyfikat/dyplom),
@@ -42,11 +43,13 @@ Pakiet udostępnia obecnie trzy podstawowe funkcje:
 
 `wczytaj_tabele_wejsciowe()` wymaga wskazania lokalizacji folderu z plikami CSV zawierającymi dane, które mają zostać wczytane do bazy oraz danych niezbędnych do połączenia się z bazą (p. następna sekcja). Funkcja nic nie zwraca, niemniej domyślnie generuje w katalogu roboczym pliki CSV zawierające zestawienia problematycznych danych (uwaga, ich występowanie **nie** uniemożliwia wczytania danych do bazy i ich dalszego przetwarzania! niemniej w ostatecznym rozrachunku rzutuje na trafność i rzetelność wskaźników).
 
--   Wczytanie danych z monitoringu 2021 r. do działającej lokalnie bazy PostgreSQL 10.1 na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ trwa 35-40 minut (w konfiguracji z 32 GB RAM i procesorem Ryzen 5 5600H dane z monitoringu 2022 r. wczytywały się ~30 minut).
+-   Wczytanie danych z monitoringu 2021 r. (tylko roczniki *w rok* i *w dwa lata* od ukończenia szkoły) do działającej lokalnie bazy PostgreSQL 10.1 na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ trwa 35-40 minut (w konfiguracji z 32 GB RAM i procesorem Ryzen 5 5600H dane z monitoringu 2022 r. wczytywały się ~30 minut).
+-   Wczytanie danych z monitoringu 2026 r. (roczniki *w rok*, *w dwa lata* i w *siedem lat* od ukończenia szkoły, poszerzony zakres przetwarzanych danych) do działającej lokalnie bazy PostgreSQL 16 na komputerze z 32 GB RAM i procesorem Intel i5-12450H trwa ~3:30 h.
 
-`przygotuj_tabele_posrednie()` wymaga jedynie przekazania danych niezbędnych do połączenia się z bazą (p. następna sekcja). Przygotowane *tabele pośrednie* domyślnie zwraca zarówno jako listę *ramek danych* w środowisku R, z której pobierała dane wejściowe.
+`przygotuj_tabele_posrednie()` wymaga jedynie przekazania danych niezbędnych do połączenia się z bazą (p. następna sekcja). Przygotowane *tabele pośrednie* domyślnie zwraca jako listę *ramek danych* w środowisku R, z której pobierała dane wejściowe.
 
--   Dla danych z monitoringu 2021 r., na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ, z wykorzystaniem działającej lokalnie bazy PostgreSQL 10.1 trwa ~20 minut - bez tworzenia *tabeli pośredniej p5* (w konfiguracji z 32 GB RAM i procesorem Ryzen 5 5600H dane z monitoringu 2022 r. przetwarzały się ~18 minut, z tworzeniem *tabeli pośredniej p5*).
+-   Dla danych z monitoringu 2021 r. (tylko roczniki *w rok* i *w dwa lata* od ukończenia szkoły) , na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ, z wykorzystaniem działającej lokalnie bazy PostgreSQL 10.1 trwa ~20 minut - bez tworzenia *tabeli pośredniej p5* (w konfiguracji z 32 GB RAM i procesorem Ryzen 5 5600H dane z monitoringu 2022 r. przetwarzały się ~18 minut, z tworzeniem *tabeli pośredniej p5*).
+-   Dla danych z monitoringu 2026 r. (roczniki *w rok*, *w dwa lata* i w *siedem lat* od ukończenia szkoły, poszerzony zakres przetwarzanych danych) do działającej lokalnie bazy PostgreSQL 16 na komputerze z 32 GB RAM i procesorem Intel i5-12450H1 trwa ~4 h.
 
 Sposób działania obu funkcji - a szczególnie `przygotuj_tabele_posrednie()` - można modyfikować przy pomocy dodatkowych argumentów. Więcej na ten temat można dowiedzieć się w ich dokumentacji:
 
@@ -54,10 +57,6 @@ Sposób działania obu funkcji - a szczególnie `przygotuj_tabele_posrednie()` -
 ?wczytaj_tabele_wejsciowe()
 ?przygotuj_tabele_posrednie()
 ```
-
-`wczytaj_tabele_posrednie()` wymaga przekazania jako argumentu listy zwróconej przez `przygotuj_tabele_posrednie()` oraz danych niezbędnych do połączenia się z bazą (p. następna sekcja).
-
--   Wczytanie danych z monitoringu 2021 r. do działającej lokalnie bazy PostgreSQL 10.1 na komputerze z 16 GB RAM i procesorem Intel i7-4720HQ trwa ~45 minut - bez *tabeli pośredniej p5* (w konfiguracji z 32 GB RAM i procesorem Ryzen 5 5600H dane z monitoringu 2022 r. wczytywały się ~45 minut, z *tabelą pośrednia p5*).
 
 ## Współpraca z bazą danych
 
@@ -89,6 +88,8 @@ baza <- list(drv = RPostgres::Postgres(),
 
 # Skrypt tworzący bazę danych
 
+## Edycja 2026
+
 ```{sql}
 /* ### "słownikowe" typy danych ############################################# */
 CREATE TYPE plec AS ENUM ('K', 'M');
@@ -108,8 +109,19 @@ CREATE TYPE status AS ENUM ('Tylko nauka', 'Nauka i praca', 'Tylko praca', 'Bezr
 CREATE TYPE typ_szk AS ENUM ('Branżowa szkoła I stopnia', 'Branżowa szkoła II stopnia', 'Technikum', 'Liceum ogólnokształcące', 'Liceum dla dorosłych', 'Szkoła policealna', 'Szkoła specjalna przysposabiająca do pracy');
 CREATE TYPE typ_szk_mlodoc AS ENUM ('Młodociani w Branżowej szkole I stopnia', 'Niemłodociani w Branżowej szkole I stopnia', 'Branżowa szkoła II stopnia', 'Technikum', 'Liceum ogólnokształcące', 'Liceum dla dorosłych', 'Szkoła policealna', 'Szkoła specjalna przysposabiająca do pracy');
 CREATE TYPE forma_ksztalcenia AS ENUM ('dzienna', 'stacjonarna', 'zaoczna');
+CREATE TYPE rodzaj_uczelni AS ENUM ('Uczelnia publiczna', 'Uczelnia niepubliczna', 'Uczelnia kościelna', 'Filia uczelni publicznej', 'Filia uczelni niepublicznej', 'Filia uczelni kościelnej');
+CREATE TYPE typ_podmiotu AS ENUM ('akademicka', 'zawodowa');
+CREATE TYPE status_podmiotu AS ENUM ('Działająca', 'W likwidacji', 'Dane ekstrapolowane w przeszłość', 'Dane ekstrapolowane w przyszłość');
+CREATE TYPE stan_zdawania AS ENUM ('Przystąpił', 'Finalista', 'Laureat', 'Nieobecny', 'Nie przeprowadzano egzaminu', 'Unieważniony', 'Zwolniony', 'Przerwany');
+CREATE TYPE termin_matury AS ENUM ('główny', 'poprawkowy', 'dodatkowy');
+CREATE TYPE poziom_matury AS ENUM ('P', 'R', 'D', 'N', 'Z');
+CREATE TYPE forma_zdawania AS ENUM ('pisemna', 'ustna');
 
 /* ### tabele "wejściowe" ################################################### */
+CREATE TABLE w29 (
+	kraj_pochodzenia text PRIMARY KEY,
+	region_pochodzenia text NOT NULL CHECK (region_pochodzenia != '')
+);
 CREATE TABLE w1 (
 	id_abs int,
 	rok_abs int CHECK (rok_abs >= 2019),
@@ -142,7 +154,8 @@ CREATE TABLE w19 (
 CREATE TABLE w26a (
 	id_szk int PRIMARY KEY CHECK (id_szk > 0),
 	/* typ szkoły jest w praktyce jedyną cechą szkoły, dla której gwarantowana jest stałość w czasie! */
-	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk) ON DELETE CASCADE ON UPDATE CASCADE
+	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk) ON DELETE CASCADE ON UPDATE CASCADE,
+	UNIQUE (id_szk, typ_szk)
 );
 /* dane wszystkich szkół występujących w danych z RSPO */
 CREATE TABLE w26 (
@@ -162,7 +175,7 @@ CREATE TABLE w26 (
 	nr_lokalu text,
 	pna text NOT NULL CHECK (pna != ''),
 	poczta text NOT NULL CHECK (poczta != ''),
-	publicznosc text NOT NULL,
+	publicznosc text NOT NULL CHECK (publicznosc != ''),
 	kategoria_uczniow kat_uczn NOT NULL,
 	specyfika specyfika NOT NULL,
 	organ_rejestrujacy_id int NOT NULL,
@@ -179,7 +192,7 @@ CREATE TABLE w26 (
 	organ_prowadzacy_gmi text NOT NULL CHECK (organ_prowadzacy_gmi != ''),
 	miejsce_w_strukt miejsce_w_strukt NOT NULL,
 	jedn_nadrz_id int,
-	jedn_nadrz_typ text,
+	jedn_nadrz_typ text CHECK (CASE WHEN jedn_nadrz_id IS NOT NULL THEN jedn_nadrz_typ IS NOT NULL AND jedn_nadrz_typ != '' ELSE jedn_nadrz_typ IS NULL END),
 	PRIMARY KEY (id_szk, rok_szk)
 );
 /* unikalne kody zawodow (w tym zawody nie przypisane do żadnej branży) */
@@ -200,35 +213,37 @@ CREATE TABLE w2 (
 	rok_abs int,
 	rok_ur int,
 	plec plec NOT NULL,
-	id_szk int REFERENCES w26a (id_szk) ON DELETE CASCADE ON UPDATE CASCADE,
-	typ_szk text NOT NULL REFERENCES typy_szkol (typ_szk) ON DELETE CASCADE ON UPDATE CASCADE,
+	id_szk int NOT NULL,
+	typ_szk text NOT NULL,
 	teryt_szk int CHECK (teryt_szk >= 201011 AND teryt_szk <= 3299999),
 	teryt_pow_szk int NOT NULL REFERENCES w25 (teryt_pow) ON DELETE CASCADE ON UPDATE CASCADE,
-	lp int,
+	lp int NOT NULL,
 	kod_zaw int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
 	nazwa_zaw text,
 	forma_ksztalc forma_ksztalcenia NOT NULL,
 	nauka_poza_szkola boolean NOT NULL,
 	PRIMARY KEY (id_abs, rok_abs, id_szk, lp),
+	FOREIGN KEY (id_szk, typ_szk) REFERENCES w26a (id_szk, typ_szk) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE TABLE w3 (
 	id_abs int,
 	rok_abs int,
-	id_szk_kont int REFERENCES w26a (id_szk) ON DELETE CASCADE ON UPDATE CASCADE,
-	typ_szk_kont text NOT NULL REFERENCES typy_szkol (typ_szk) ON DELETE CASCADE ON UPDATE CASCADE,
+	id_szk_kont int NOT NULL,
+	typ_szk_kont text NOT NULL,
 	data_od_szk_kont date NOT NULL,
 	lp int,
-	czy_ukoncz_szk_kont int CHECK (czy_ukoncz_szk_kont >= 0 AND czy_ukoncz_szk_kont <= 2),
+	czy_ukoncz_szk_kont int NOT NULL CHECK (czy_ukoncz_szk_kont >= 0 AND czy_ukoncz_szk_kont <= 2),
 	data_do_szk_kont date, CHECK (CASE WHEN czy_ukoncz_szk_kont != 0 THEN data_do_szk_kont IS NOT NULL ELSE data_do_szk_kont IS NULL END),
 	kod_zaw_kont int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
 	nazwa_zaw_kont text CHECK (CASE WHEN kod_zaw_kont IS NOT NULL THEN nazwa_zaw_kont IS NOT NULL AND nazwa_zaw_kont != '' END),
 	PRIMARY KEY (id_abs, rok_abs, id_szk_kont, data_od_szk_kont, lp),
-	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
+	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (id_szk_kont, typ_szk_kont) REFERENCES w26a (id_szk, typ_szk)
 );
 /* uwaga! mapowanie kwalifikacji na zawody jest 1:n */
 CREATE TABLE w21a (
-	kod_kwal text PRIMARY KEY
+	kod_kwal text PRIMARY KEY CHECK (kod_kwal != '')
 );
 CREATE TABLE w21 (
 	kod_kwal text REFERENCES w21a (kod_kwal) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -238,8 +253,8 @@ CREATE TABLE w21 (
 CREATE TABLE w4 (
 	id_abs int,
 	rok_abs int,
-	id_szk_kont int REFERENCES w26a (id_szk) ON DELETE CASCADE ON UPDATE CASCADE,
-	lp int,
+	id_szk_kont int NOT NULL REFERENCES w26a (id_szk) ON DELETE CASCADE ON UPDATE CASCADE,
+	lp int NOT NULL,
 	data_od_kkz date NOT NULL,
 	data_do_kkz date,
 	kod_kwal_kkz text NOT NULL REFERENCES w21a (kod_kwal) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -249,8 +264,8 @@ CREATE TABLE w4 (
 CREATE TABLE w5 (
 	id_abs int,
 	rok_abs int,
-	id_szk_kont int REFERENCES w26a (id_szk) ON DELETE CASCADE ON UPDATE CASCADE,
-	lp int,
+	id_szk_kont int NOT NULL REFERENCES w26a (id_szk) ON DELETE CASCADE ON UPDATE CASCADE,
+	lp int NOT NULL,
 	data_od_kuz date NOT NULL,
 	data_do_kuz date,
 	kod_zaw_kuz int NOT NULL REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -260,34 +275,81 @@ CREATE TABLE w5 (
 CREATE TABLE w6 (
 	id_abs int,
 	rok_abs int,
-	kod_zaw_czel int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
+	kod_zaw_czel int NOT NULL REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
 	PRIMARY KEY (id_abs, rok_abs, kod_zaw_czel),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE TABLE w7 (
 	id_abs int,
 	rok_abs int,
-	rok_matura int,
+	rok_matura int NOT NULL,
 	czy_zdana_matura boolean NOT NULL,
-	data_swiad_matura date CHECK (CASE WHEN czy_zdana_matura THEN data_swiad_matura IS NOT NULL ELSE TRUE END),
+	data_swiad_matura date CHECK ((NOT czy_zdana_matura AND data_swiad_matura IS NULL) OR (czy_zdana_matura AND data_swiad_matura IS NOT NULL)),
 	PRIMARY KEY (id_abs, rok_abs, rok_matura),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
-/*
 CREATE TABLE w27 (
+	id_abs int,
+	rok_abs int,
+	rok_e8 int NOT NULL CHECK (rok_e8 >= 2019),
+	termin_e8 termin_matury NOT NULL CHECK (termin_e8 != 'poprawkowy'),
+	przedmiot_e8 text NOT NULL,
+	dostos_form_e8 bool NOT NULL,
+	dostos_war_e8 bool NOT NULL,
+	stan_zdawania_e8 stan_zdawania NOT NULL,
+	wynik_e8 real CHECK ((wynik_e8 >= 0 AND wynik_e8 <= 100) OR wynik_e8 IS NULL)
+		CHECK ((stan_zdawania_e8 IN ('Przystąpił', 'Finalista', 'Laureat') AND wynik_e8 IS NOT NULL) OR (stan_zdawania_e8 NOT IN ('Przystąpił', 'Finalista', 'Laureat') AND wynik_e8 IS NULL)),
+	PRIMARY KEY (id_abs, rok_abs, rok_e8, przedmiot_e8),
+	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE w27d (
+	id_abs int,
+	rok_abs int,
+	rok_e8 int NOT NULL CHECK (rok_e8 >= 2019),
+	przedmiot_e8 text NOT NULL,
+	dostos_form_opis_e8 text NOT NULL CHECK (dostos_form_opis_e8 != ''),
+	dostos_war_e8 bool NOT NULL,
+	PRIMARY KEY (id_abs, rok_abs, rok_e8, przedmiot_e8, dostos_form_opis_e8),
+	FOREIGN KEY (id_abs, rok_abs, rok_e8, przedmiot_e8) REFERENCES w27 (id_abs, rok_abs, rok_e8, przedmiot_e8) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE TABLE w28 (
+	id_abs int,
+	rok_abs int,
+	rok_matura int NOT NULL,
+	termin_matura termin_matury NOT NULL,
+	przedmiot_matura text NOT NULL,
+	poziom_matura poziom_matury NOT NULL,
+	forma_zdawania forma_zdawania NOT NULL,
+	dostos_form_matura bool CHECK ((rok_matura < 2021 AND dostos_form_matura IS NULL) OR (rok_matura >= 2021 AND dostos_form_matura IS NOT NULL)),
+	dostos_war_matura bool CHECK ((rok_matura < 2021 AND dostos_war_matura IS NULL) OR (rok_matura >= 2021 AND dostos_war_matura IS NOT NULL)),
+	stan_zdawania_matura stan_zdawania NOT NULL,
+	wynik_matura real CHECK ((wynik_matura >= 0 AND wynik_matura <= 100) OR wynik_matura IS NULL)
+		CHECK ((stan_zdawania_matura IN ('Przystąpił', 'Finalista', 'Laureat') AND wynik_matura IS NOT NULL) OR (stan_zdawania_matura NOT IN ('Przystąpił', 'Finalista', 'Laureat') AND wynik_matura IS NULL)),
+	PRIMARY KEY (id_abs, rok_abs, rok_matura, termin_matura, przedmiot_matura, poziom_matura, forma_zdawania),
+	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
-*/
+CREATE TABLE w28d (
+	id_abs int,
+	rok_abs int,
+	rok_matura int NOT NULL,
+	termin_matura termin_matury NOT NULL,
+	przedmiot_matura text NOT NULL,
+	poziom_matura poziom_matury NOT NULL,
+	forma_zdawania forma_zdawania NOT NULL,
+	dostos_form_opis_matura text NOT NULL CHECK (dostos_form_opis_matura != ''),
+	dostos_war_matura bool NOT NULL,
+	PRIMARY KEY (id_abs, rok_abs, rok_matura, termin_matura, przedmiot_matura, poziom_matura, forma_zdawania, dostos_form_opis_matura),
+	FOREIGN KEY (id_abs, rok_abs, rok_matura, termin_matura, przedmiot_matura, poziom_matura, forma_zdawania) REFERENCES w28 (id_abs, rok_abs, rok_matura, termin_matura, przedmiot_matura, poziom_matura, forma_zdawania) ON DELETE CASCADE ON UPDATE CASCADE
+);
 CREATE TABLE w810 (
 	id_abs int,
 	rok_abs int,
-	rok_egz_zaw int,
-	sesja_egz_zaw text,
+	rok_egz_zaw int NOT NULL,
+	sesja_egz_zaw text NOT NULL CHECK (sesja_egz_zaw != ''),
 	kod_kwal text REFERENCES w21a (kod_kwal) ON DELETE CASCADE ON UPDATE CASCADE,
 	wynik_pisemn_egz_zaw real CHECK ((wynik_pisemn_egz_zaw >= 0 AND wynik_pisemn_egz_zaw <= 100) OR wynik_pisemn_egz_zaw IS NULL),
 	wynik_prakt_egz_zaw real CHECK ((wynik_prakt_egz_zaw >= 0 AND wynik_prakt_egz_zaw <= 100) OR wynik_prakt_egz_zaw IS NULL),
-	dok_potw_kwal int CHECK (dok_potw_kwal >= 1 AND dok_potw_kwal <= 2),
+	dok_potw_kwal int CHECK (dok_potw_kwal IN (1, 2)),
 	data_kwal date,
 	PRIMARY KEY (id_abs, rok_abs, rok_egz_zaw, sesja_egz_zaw, kod_kwal),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
@@ -295,25 +357,25 @@ CREATE TABLE w810 (
 CREATE TABLE w810d (
 	id_abs int,
 	rok_abs int,
-	rok_egz_zaw int,
-	sesja_egz_zaw text,
-	kod_kwal text,
-	dostosowanie_egz_zaw text,
+	rok_egz_zaw int NOT NULL,
+	sesja_egz_zaw text NOT NULL CHECK (sesja_egz_zaw != ''),
+	kod_kwal text NOT NULL,
+	dostosowanie_egz_zaw text NOT NULL CHECK (dostosowanie_egz_zaw != ''),
 	PRIMARY KEY (id_abs, rok_abs, rok_egz_zaw, sesja_egz_zaw, kod_kwal, dostosowanie_egz_zaw),
 	FOREIGN KEY (id_abs, rok_abs, rok_egz_zaw, sesja_egz_zaw, kod_kwal) REFERENCES w810 (id_abs, rok_abs, rok_egz_zaw, sesja_egz_zaw, kod_kwal)
 );
 CREATE TABLE w911 (
 	id_abs int,
 	rok_abs int,
-	kod_zaw int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
+	kod_zaw int NOT NULL REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
 	rok_dyp int NOT NULL,
-	dok_potw_dyp int NOT NULL CHECK (dok_potw_dyp >= 1 AND dok_potw_dyp <= 2),
+	dok_potw_dyp int NOT NULL CHECK (dok_potw_dyp IN (1, 2)),
 	data_dyp_zaw date NOT NULL,
 	PRIMARY KEY (id_abs, rok_abs, kod_zaw),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE TABLE w24 (
-	kod_zaw int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
+	kod_zaw int NOT NULL REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
 	kod_isced char(4) NOT NULL,
 	grupa_isced text NOT NULL CHECK (grupa_isced != ''),
 	podgrupa_isced text NOT NULL CHECK (podgrupa_isced != ''),
@@ -322,40 +384,48 @@ CREATE TABLE w24 (
 	UNIQUE (kod_zaw, kod_isced, grupa_isced, podgrupa_isced, nazwa_isced)
 );
 CREATE TABLE w13a (
-	id_kierunku_stu text PRIMARY KEY
+	id_kierunku_stu text PRIMARY KEY CHECK (id_kierunku_stu != '')
 );
 CREATE TABLE w13 (
-	id_kierunku_stu text REFERENCES w13a (id_kierunku_stu) ON DELETE CASCADE ON UPDATE CASCADE,
-	dziedzina text,
-	dyscyplina text,
+	id_kierunku_stu text NOT NULL REFERENCES w13a (id_kierunku_stu) ON DELETE CASCADE ON UPDATE CASCADE,
+	dziedzina text NOT NULL CHECK (dziedzina != ''),
+	dyscyplina text NOT NULL CHECK (dyscyplina != ''),
 	czy_dyscyplina_wiodaca boolean NOT NULL,
 	PRIMARY KEY (id_kierunku_stu, dziedzina, dyscyplina)
 );
 CREATE TABLE w30a (
-  	id_podmiotu text,
-	id_uczelni text,
-	PRIMARY KEY (id_podmiotu)
+  id_podmiotu text NOT NULL PRIMARY KEY CHECK (id_podmiotu != ''),
+	id_uczelni text NOT NULL CHECK (id_uczelni != ''),
+	rodzaj_uczelni rodzaj_uczelni NOT NULL
 );
 CREATE TABLE w30 (
-	id_uczelni text,
-  	id_podmiotu text,
-	data_od date NOT NULL,
-	data_do date NOT NULL,
-	nazwa_podmiotu text NOT NULL,
-	teryt_podmiotu integer REFERENCES w25 (teryt_pow),
-	teryt_gmi_podmiotu integer CHECK (teryt_gmi_podmiotu IN (1, 2, 4, 5)),
-	PRIMARY KEY (id_uczelni, id_podmiotu, data_od)
+	id_podmiotu text NOT NULL REFERENCES w30a (id_podmiotu) ON DELETE CASCADE ON UPDATE CASCADE,
+	rok_akad rok_szk NOT NULL,
+	typ_podmiotu typ_podmiotu NOT NULL,
+	nazwa_podmiotu text NOT NULL CHECK (nazwa_podmiotu != ''),
+	status_podmiotu status_podmiotu NOT NULL,
+	kraj_podmiotu text NOT NULL CHECK (kraj_podmiotu != ''),
+	teryt_pow_podmiotu integer CHECK ((kraj_podmiotu = 'Polska' AND teryt_pow_podmiotu IS NOT NULL) OR (kraj_podmiotu != 'Polska' AND teryt_pow_podmiotu IS NULL)),
+	wojewodztwo_podmiotu text CHECK ((kraj_podmiotu = 'Polska' AND wojewodztwo_podmiotu IS NOT NULL) OR (kraj_podmiotu != 'Polska' AND wojewodztwo_podmiotu IS NULL)),
+	powiat_podmiotu text CHECK ((kraj_podmiotu = 'Polska' AND powiat_podmiotu IS NOT NULL) OR (kraj_podmiotu != 'Polska' AND powiat_podmiotu IS NULL)),
+	rodzaj_gminy_podmiotu integer CHECK ((kraj_podmiotu = 'Polska' AND rodzaj_gminy_podmiotu IN (1, 2, 4, 5)) OR (kraj_podmiotu != 'Polska' AND rodzaj_gminy_podmiotu IS NULL)),
+	ulica text NOT NULL CHECK (ulica != ''),
+	pna text NOT NULL CHECK (pna != ''),
+	poczta text NOT NULL CHECK (poczta != ''),
+	organ_nadzorujacy text,
+	organ_nadzorujacy_typ text,
+	PRIMARY KEY (id_podmiotu, rok_akad)
 );
 CREATE TABLE w12 (
 	id_abs int,
 	rok_abs int,
 	id_kierunku_stu text NOT NULL REFERENCES w13a (id_kierunku_stu) ON DELETE CASCADE ON UPDATE CASCADE,
-	kierunek_stu text NOT NULL,
+	kierunek_stu text NOT NULL CHECK (kierunek_stu != ''),
 	profil_stu profil_stu NOT NULL,
 	forma_stu forma_stu NOT NULL,
 	id_podmiotu text NOT NULL REFERENCES w30a (id_podmiotu) ON DELETE CASCADE ON UPDATE CASCADE,
 	data_od_stu date NOT NULL,
-	czy_ukoncz_stu int NOT NULL CHECK (czy_ukoncz_stu >= 0 AND czy_ukoncz_stu <= 2),
+	czy_ukoncz_stu int NOT NULL CHECK (czy_ukoncz_stu IN (0, 1, 2)),
 	data_do_stu date CHECK (CASE WHEN czy_ukoncz_stu = 1 THEN data_do_stu IS NOT NULL ELSE data_do_stu IS NULL END),
 	tytul_zaw_stu text CHECK (CASE WHEN czy_ukoncz_stu = 1 THEN tytul_zaw_stu IS NOT NULL ELSE tytul_zaw_stu IS NULL END),
 	data_skresl_stu date CHECK (CASE WHEN czy_ukoncz_stu = 2 THEN data_skresl_stu IS NOT NULL ELSE data_skresl_stu IS NULL END),
@@ -365,17 +435,17 @@ CREATE TABLE w12 (
 CREATE TABLE w14 (
 	id_abs int,
 	rok_abs int,
-	rok_zgonu int,
-	mies_zgonu int CHECK (mies_zgonu >=1 AND mies_zgonu <= 12),
+	rok_zgonu int NOT NULL,
+	mies_zgonu int NOT NULL CHECK (mies_zgonu >=1 AND mies_zgonu <= 12),
 	PRIMARY KEY (id_abs, rok_abs),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE TABLE w15 (
 	id_abs int,
 	rok_abs int,
-	adres_typ adres_typ,
-	data_adr_od date,
-	lp int,
+	adres_typ adres_typ NOT NULL,
+	data_adr_od date NOT NULL,
+	lp int NOT NULL,
 	data_adr_do date,
 	teryt int,
 	PRIMARY KEY (id_abs, rok_abs, adres_typ, data_adr_od, lp),
@@ -428,11 +498,11 @@ CREATE TABLE w22 (
 CREATE TABLE w16 (
 	id_abs int,
 	rok_abs int,
-	rok_skladka int,
-	mies_skladka int CHECK (mies_skladka >=1 AND mies_skladka <= 12),
-	id_platnika int REFERENCES w18 (id_platnika) ON DELETE CASCADE ON UPDATE CASCADE,
-	kod_zus int REFERENCES w22 (kod_zus) ON DELETE CASCADE ON UPDATE CASCADE,
-	lp int,
+	rok_skladka int NOT NULL,
+	mies_skladka int NOT NULL CHECK (mies_skladka >=1 AND mies_skladka <= 12),
+	id_platnika int NOT NULL REFERENCES w18 (id_platnika) ON DELETE CASCADE ON UPDATE CASCADE,
+	kod_zus int NOT NULL REFERENCES w22 (kod_zus) ON DELETE CASCADE ON UPDATE CASCADE,
+	lp int NOT NULL,
 	podst_chor int NOT NULL,
 	podst_wypad int NOT NULL,
 	podst_emer int NOT NULL,
@@ -442,8 +512,8 @@ CREATE TABLE w16 (
 	udzial_dni_zatr_mies real CHECK ((udzial_dni_zatr_mies > 0 AND udzial_dni_zatr_mies <= 1) OR udzial_dni_zatr_mies IS NULL),
 	wymiar_zatr real CHECK (wymiar_zatr > 0 OR wymiar_zatr IS NULL),
 	kod_zaw_praca int CHECK ((kod_zaw_praca > 10000 AND kod_zaw_praca <= 999999) OR udzial_dni_zatr_mies IS NULL),
-	emeryt_rencista int NOT NULL CHECK (emeryt_rencista >= 0 AND emeryt_rencista <= 2),
-	niepelnosprawny int NOT NULL CHECK (niepelnosprawny >= 0 AND niepelnosprawny <= 4),
+	emeryt_rencista int NOT NULL CHECK (emeryt_rencista IN (0, 1, 2)),
+	niepelnosprawny int NOT NULL CHECK (niepelnosprawny IN (0, 1, 2, 3, 4)),
 	PRIMARY KEY (id_abs, rok_abs, rok_skladka, mies_skladka, id_platnika, kod_zus, lp),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -459,9 +529,9 @@ CREATE TABLE w23 (
 CREATE TABLE w17 (
 	id_abs int,
 	rok_abs int,
-	id_platnika int REFERENCES w18 (id_platnika) ON DELETE CASCADE ON UPDATE CASCADE,
-	data_od_przerwa date,
-	kod_przerwy int REFERENCES w23 (kod) ON DELETE CASCADE ON UPDATE CASCADE,
+	id_platnika int NOT NULL REFERENCES w18 (id_platnika) ON DELETE CASCADE ON UPDATE CASCADE,
+	data_od_przerwa date NOT NULL,
+	kod_przerwy int NOT NULL REFERENCES w23 (kod) ON DELETE CASCADE ON UPDATE CASCADE,
 	data_do_przerwa date,
 	PRIMARY KEY (id_abs, rok_abs, id_platnika, data_od_przerwa, kod_przerwy, data_do_przerwa),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
@@ -469,9 +539,9 @@ CREATE TABLE w17 (
 CREATE TABLE w31 (
 	id_abs int,
 	rok_abs int,
-	orzeczenie_data_od date,
+	orzeczenie_data_od date NOT NULL,
 	orzeczenie_data_do date NOT NULL,
-	niepelnosprawnosc text,
+	niepelnosprawnosc text NOT NULL CHECK (niepelnosprawnosc != ''),
 	niepelnosprawnosc_sprz2 bool NOT NULL,
 	niepelnosprawnosc_sprz3 bool NOT NULL,
 	niepelnosprawnosc_sprz4 bool NOT NULL,
@@ -487,7 +557,7 @@ CREATE TABLE w31 (
 CREATE TABLE w32 (
 	id_abs int,
 	rok_abs int,
-	data_od_ubezp date,
+	data_od_ubezp date NOT NULL,
 	data_do_ubezp date,
 	rola_ubezp int CHECK (rola_ubezp IN (1, 2, 3, 4, 5) OR rola_ubezp IS NULL),
 	PRIMARY KEY (id_abs, rok_abs, data_od_ubezp),
@@ -497,216 +567,9 @@ CREATE TABLE w33 (
 	id_abs int,
 	rok_abs int,
 	rodzaj_swiadcz int NOT NULL CHECK (rodzaj_swiadcz IN (1, 2, 3, 4)),
-	data_od_swiadcz date,
-	data_do_swiadcz date,
+	data_od_swiadcz date NOT NULL,
+	data_do_swiadcz date NOT NULL,
 	PRIMARY KEY (id_abs, rok_abs, data_od_swiadcz, rodzaj_swiadcz),
 	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
-);
-
-/* ### tabele "pośrednie" ################################################### */
-CREATE TABLE p1 (
-	id_abs int,
-	rok_abs int,
-	rodzaj_dyplomu rodzaj_dyplomu,
-	dyplom_szczegoly text CHECK (CASE WHEN rodzaj_dyplomu IN ('certyfikat kwalifikacji', 'dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera') THEN dyplom_szczegoly IS NOT NULL ELSE dyplom_szczegoly IS NULL END),
-	rok int CHECK (CASE WHEN rodzaj_dyplomu != 'tytuł czeladnika' THEN rok IS NOT NULL END),
-	miesiac int CHECK (CASE WHEN rodzaj_dyplomu != 'tytuł czeladnika' THEN miesiac IS NOT NULL END),
-	mies_od_ukoncz int CHECK (CASE WHEN rodzaj_dyplomu != 'tytuł czeladnika' THEN mies_od_ukoncz IS NOT NULL END),
-	okres int CHECK (CASE WHEN rodzaj_dyplomu != 'tytuł czeladnika' THEN okres IS NOT NULL END),
-	lp_dyplom int,
-	kod_zaw int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
-	branza text,
-	kod_zaw_dyplom int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
-	branza_dyplom text CHECK (CASE WHEN rodzaj_dyplomu NOT IN ('certyfikat kwalifikacji', 'dyplom zawodowy', 'tytuł czeladnika') THEN branza_dyplom IS NULL END),
-	dziedzina text CHECK (CASE WHEN rodzaj_dyplomu NOT IN ('dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera') THEN dziedzina IS NULL END),
-	dyscyplina_wiodaca text CHECK (CASE WHEN rodzaj_dyplomu NOT IN ('dyplom licencjata/inżyniera', 'dyplom magistra/lekarza', 'dyplom oficera') THEN dyscyplina_wiodaca IS NULL END),
-	PRIMARY KEY (id_abs, rok_abs, rodzaj_dyplomu, lp_dyplom),
-	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE,
-	UNIQUE (id_abs, rok_abs, kod_zaw, rodzaj_dyplomu, dyplom_szczegoly, dziedzina, dyscyplina_wiodaca, okres)
-);
-CREATE TABLE p2 (
-	id_abs int,
-	rok_abs int,
-	rok int NOT NULL,
-	miesiac int NOT NULL,
-	mies_od_ukoncz int NOT NULL,
-	okres int,
-	lp_kont int,
-	kod_zaw int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE,
-	branza text,
-	id_szk_kont int REFERENCES w26a (id_szk) ON DELETE CASCADE ON UPDATE CASCADE,
-	typ_szk_kont text NOT NULL,
-	forma_kont forma_kontynuacji NOT NULL,
-	teryt_pow_kont int REFERENCES w25 (teryt_pow) ON DELETE CASCADE ON UPDATE CASCADE,
-	kod_zaw_kont int REFERENCES w20a (kod_zaw) ON DELETE CASCADE ON UPDATE CASCADE CHECK (CASE WHEN forma_kont = 'student' THEN kod_zaw_kont IS NULL END),
-	branza_kont text CHECK (CASE WHEN forma_kont = 'student' THEN branza_kont IS NULL END),
-	dziedzina_kont text CHECK (CASE WHEN forma_kont != 'student' THEN dziedzina_kont IS NULL END),
-	dyscyplina_wiodaca_kont text CHECK (CASE WHEN forma_kont != 'student' THEN dyscyplina_wiodaca_kont IS NULL END),
-	zrodlo text NOT NULL,
-	PRIMARY KEY (id_abs, rok_abs, okres, lp_kont),
-	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
-);
-CREATE TABLE p3 (
-	id_abs int,
-	rok_abs int,
-	rok int NOT NULL,
-	miesiac int NOT NULL,
-	mies_od_ukoncz int NOT NULL,
-	okres int,
-	status status NOT NULL,
-	zmarl boolean NOT NULL,
-	brak_danych_z_zus boolean NOT NULL,
-	praca int CHECK (praca in (0, 1, 2, 3, 4, 5, 6, 7)) CHECK (CASE WHEN brak_danych_z_zus THEN praca IS NULL ELSE praca IS NOT NULL END),
-	mlodociany int CHECK (mlodociany in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN mlodociany IS NULL ELSE mlodociany IS NOT NULL END),
-	kont_mlodoc_prac int CHECK (kont_mlodoc_prac in (1, 2, 3, 4, 5, 6)) CHECK (CASE WHEN brak_danych_z_zus THEN kont_mlodoc_prac IS NULL END),
-	bezrobocie int CHECK (bezrobocie in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN bezrobocie IS NULL ELSE bezrobocie IS NOT NULL END),
-	bezrobocie_staz int CHECK (bezrobocie_staz in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN bezrobocie_staz IS NULL ELSE bezrobocie_staz IS NOT NULL END),
-	dziecko int CHECK (dziecko in (0, 1, 2)) CHECK (CASE WHEN brak_danych_z_zus THEN dziecko IS NULL ELSE dziecko IS NOT NULL END),
-	macierz int CHECK (macierz in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN macierz IS NULL ELSE macierz IS NOT NULL END),
-	wychow int CHECK (wychow in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN wychow IS NULL ELSE wychow IS NOT NULL END),
-	pomoc_spol int CHECK (pomoc_spol in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN pomoc_spol IS NULL ELSE pomoc_spol IS NOT NULL END),
-	emeryt_rencista int CHECK (emeryt_rencista in (0, 1, 2)) CHECK (CASE WHEN brak_danych_z_zus THEN emeryt_rencista IS NULL END),
-	niepelnosprawny int CHECK (niepelnosprawny in (0, 1, 2, 3, 4)) CHECK (CASE WHEN brak_danych_z_zus THEN niepelnosprawny IS NULL END),
-	biernosc_zus int CHECK (biernosc_zus in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN biernosc_zus IS NULL ELSE biernosc_zus IS NOT NULL END),
-	wypadek int CHECK (wypadek in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN wypadek IS NULL ELSE wypadek IS NOT NULL END),
-	choroba int CHECK (choroba in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN choroba IS NULL ELSE choroba IS NOT NULL END),
-	choroba_macierz int CHECK (choroba_macierz in (0, 1)) CHECK (CASE WHEN brak_danych_z_zus THEN choroba_macierz IS NULL ELSE choroba_macierz IS NOT NULL END),
-	wynagrodzenie real CHECK (CASE WHEN brak_danych_z_zus THEN wynagrodzenie IS NULL END),
-	wynagrodzenie_uop real CHECK (CASE WHEN praca IN (1, 4, 5, 7) THEN wynagrodzenie_uop IS NOT NULL ELSE wynagrodzenie_uop IS NULL END),
-	teryt_zam int REFERENCES w25 (teryt_pow),
-	powiat_bezrobocie real,
-	powiat_sr_wynagrodzenie real,
-	nauka int NOT NULL CHECK (nauka in (0, 1)),
-	nauka2 int NOT NULL CHECK (nauka2 in (0, 1)),
-	nauka_szk_abs int NOT NULL CHECK (nauka_szk_abs in (0, 1)),
-	nauka_bs1st int NOT NULL CHECK (nauka_bs1st in (0, 1, 2)),
-	nauka_bs2st int NOT NULL CHECK (nauka_bs2st in (0, 1, 2)),
-	nauka_technikum int NOT NULL CHECK (nauka_technikum in (0, 1, 2)),
-	nauka_lo int NOT NULL CHECK (nauka_lo in (0, 1, 2, 3)),
-	nauka_spolic int NOT NULL CHECK (nauka_spolic in (0, 1, 2, 3, 4)),
-	nauka_artystyczna int NOT NULL CHECK (nauka_artystyczna in (0, 1, 2, 3, 4, 5, 6, 7, 8)),
-	nauka_sspdp int NOT NULL CHECK (nauka_sspdp in (0, 1)),
-	nauka_kpsp int NOT NULL CHECK (nauka_kpsp in (0, 1)),
-	nauka_studia int NOT NULL CHECK (nauka_studia in (0, 1)),
-	nauka_kkz int NOT NULL CHECK (nauka_kkz in (0, 1)),
-	nauka_kuz int NOT NULL CHECK (nauka_kuz in (0, 1)),
-	PRIMARY KEY (id_abs, rok_abs, okres),
-	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
-);
-CREATE TABLE p4 (
-	id_abs int,
-	rok_abs int,
-	rok_ur int,
-	plec plec,
-	id_szk int,
-	duplikat_w_szkole boolean NOT NULL,
-	duplikat_wiele_szkol boolean NOT NULL,
-	mlodoc_byl boolean NOT NULL,
-	typ_szk typ_szk NOT NULL,
-	szk_specjalna boolean NOT NULL,
-	typ_szk_mlodoc typ_szk_mlodoc NOT NULL,
-	teryt_pow_szk int NOT NULL,
-	nazwa_pow_szk text NOT NULL,
-	teryt_woj_szk int NOT NULL,
-	nazwa_woj_szk text NOT NULL,
-	nazwa_makroreg_szk text NOT NULL,
-	nazwa_reg_szk text NOT NULL,
-	nazwa_podreg_szk text NOT NULL,
-	nts_podreg_szk int NOT NULL,
-	lp int,
-	kod_zaw int REFERENCES w20a (kod_zaw),
-	nazwa_zaw text,
-	branza text,
-	kod_isced char(4),
-	grupa_isced text,
-	podgrupa_isced text,
-	nazwa_isced text,
-	l_prac_ucz_uop int NOT NULL,
-	l_prac_nucz_uop int NOT NULL,
-	l_prac_nucz_nuop int NOT NULL,
-	zawod_sr_wynagrodzenie real,
-	abs_w_cke boolean NOT NULL,
-	abs_w_sio boolean NOT NULL,
-	abs_w_polon boolean NOT NULL,
-	abs_w_zus boolean NOT NULL,
-	PRIMARY KEY (id_abs, rok_abs, id_szk, lp),
-	FOREIGN KEY (id_abs, rok_abs, id_szk, lp) REFERENCES w2 (id_abs, rok_abs, id_szk, lp) ON DELETE CASCADE ON UPDATE CASCADE,
-	FOREIGN KEY (teryt_pow_szk, nazwa_pow_szk, nazwa_woj_szk, nazwa_makroreg_szk, nazwa_reg_szk, nazwa_podreg_szk, nts_podreg_szk) REFERENCES w25 (teryt_pow, powiat, wojewodztwo, makroregion, region, podregion, nts) ON UPDATE CASCADE,
-	FOREIGN KEY (kod_zaw, kod_isced, grupa_isced, podgrupa_isced, nazwa_isced) REFERENCES w24 (kod_zaw, kod_isced, grupa_isced, podgrupa_isced, nazwa_isced) ON UPDATE CASCADE,
-	UNIQUE (id_abs, rok_abs, id_szk, kod_zaw)
-);
-CREATE TABLE p5 (
-	id_abs int,
-	rok_abs int,
-	rok int NOT NULL,
-	miesiac int NOT NULL,
-	mies_od_ukoncz int NOT NULL,
-	okres int,
-	lp_pracod int,
-	pkd_pracod text,
-	forma_zatrudnienia int NOT NULL CHECK (forma_zatrudnienia in (1, 2, 3)),
-	mlodociany int NOT NULL CHECK (mlodociany in (0, 1)),
-	wynagrodzenie real,
-	wynagrodzenie_uop real,
-	PRIMARY KEY (id_abs, rok_abs, okres, lp_pracod),
-	FOREIGN KEY (id_abs, rok_abs) REFERENCES w1 (id_abs, rok_abs) ON DELETE CASCADE ON UPDATE CASCADE
-);
-CREATE TABLE p6 (
-	id_szk int REFERENCES w26a (id_szk) ON DELETE CASCADE ON UPDATE CASCADE,
-	szk_ma_abs boolean NOT NULL,
-	typ_szk text NOT NULL,
-	typ_szk_sdd text NOT NULL,
-	typ_szk_rspo text NOT NULL REFERENCES typy_szkol (typ_szk) ON DELETE CASCADE ON UPDATE CASCADE,
-	publicznosc text NOT NULL,
-	kategoria_uczniow kat_uczn NOT NULL,
-	specyfika specyfika NOT NULL,
-	organ_rejestrujacy_id int NOT NULL,
-	organ_rejestrujacy_typ text NOT NULL CHECK (organ_rejestrujacy_typ != ''),
-	organ_rejestrujacy_nazwa text NOT NULL CHECK (organ_rejestrujacy_nazwa != ''),
-	organ_rejestrujacy_teryt int,
-	organ_sposob_ewidencjonowania sposob_ewidencjonowania NOT NULL,
-	rok_szk rok_szk,
-	nazwa_szk text NOT NULL CHECK (nazwa_szk != ''),
-	teryt_gmi_szk int NOT NULL,
-	wojewodztwo_szk text NOT NULL CHECK (wojewodztwo_szk != ''),
-	powiat_szk text NOT NULL CHECK (powiat_szk != ''),
-	gmina_szk text NOT NULL CHECK (gmina_szk != ''),
-	simc_miejsc int NOT NULL,
-	miejscowosc text NOT NULL CHECK (miejscowosc != ''),
-	rodzaj_miejsc text NOT NULL CHECK (rodzaj_miejsc != ''),
-	sym_ul int,
-	ulica text,
-	nr_budynku text,
-	nr_lokalu text,
-	pna text NOT NULL CHECK (pna != ''),
-	poczta text NOT NULL CHECK (poczta != ''),
-	organ_prowadzacy_typ text NOT NULL CHECK (organ_prowadzacy_typ != ''),
-	organ_prowadzacy_nazwa text NOT NULL CHECK (organ_prowadzacy_nazwa != ''),
-	organ_prowadzacy_regon text,
-	organ_prowadzacy_teryt int NOT NULL,
-	organ_prowadzacy_woj text NOT NULL CHECK (organ_prowadzacy_woj != ''),
-	organ_prowadzacy_pow text NOT NULL CHECK (organ_prowadzacy_pow != ''),
-	organ_prowadzacy_gmi text NOT NULL CHECK (organ_prowadzacy_gmi != ''),
-	miejsce_w_strukt miejsce_w_strukt NOT NULL,
-	jedn_nadrz_id int,
-	jedn_nadrz_typ text,
-	PRIMARY KEY (id_szk, rok_szk),
-	FOREIGN KEY (id_szk, typ_szk_rspo, publicznosc, kategoria_uczniow, specyfika, organ_rejestrujacy_id, organ_rejestrujacy_typ, organ_rejestrujacy_nazwa,
-				 organ_sposob_ewidencjonowania, organ_prowadzacy_typ)
-	             REFERENCES w26b (id_szk, typ_szk, publicznosc, kategoria_uczniow, specyfika, organ_rejestrujacy_id, organ_rejestrujacy_typ,
-								  organ_rejestrujacy_nazwa, organ_sposob_ewidencjonowania,
-                   				  organ_prowadzacy_typ) ON DELETE CASCADE ON UPDATE CASCADE,
-	FOREIGN KEY (id_szk, rok_szk, nazwa_szk, teryt_gmi_szk, wojewodztwo_szk, powiat_szk, gmina_szk,
-                 simc_miejsc, miejscowosc, rodzaj_miejsc, sym_ul, ulica, nr_budynku, nr_lokalu, pna, poczta,
-                 organ_rejestrujacy_teryt, organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
-                 organ_prowadzacy_woj, organ_prowadzacy_pow, organ_prowadzacy_gmi, miejsce_w_strukt,
-                 jedn_nadrz_id, jedn_nadrz_typ)
-				 REFERENCES w26 (id_szk, rok_szk, nazwa_szk, teryt_gmi_szk, wojewodztwo_szk, powiat_szk, gmina_szk,
-                                 simc_miejsc, miejscowosc, rodzaj_miejsc, sym_ul, ulica, nr_budynku, nr_lokalu, pna, poczta,
-								 publicznosc, kategoria_uczniow, specyfika, organ_rejestrujacy_id, organ_rejestrujacy_typ,
-								 organ_rejestrujacy_nazwa, organ_sposob_ewidencjonowania, organ_rejestrujacy_teryt, 
-								 organ_prowadzacy_typ, organ_prowadzacy_nazwa, organ_prowadzacy_regon, organ_prowadzacy_teryt,
-                                 organ_prowadzacy_woj, organ_prowadzacy_pow, organ_prowadzacy_gmi, miejsce_w_strukt,
-                                 jedn_nadrz_id, jedn_nadrz_typ) ON DELETE CASCADE ON UPDATE CASCADE
 );
 ```

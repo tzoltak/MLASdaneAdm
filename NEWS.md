@@ -2,21 +2,7 @@
 
 ## Do zrobienia
 
--   Zaimplementować zmiany w tworzeniu tabel *pośrednich*.
-    -   Przy tworzeniu P1 trzeba odfiltrowywać wiersze w810 opisujące przystąpienia, które nie zakończyły się uzyskaniem certyfikatu, plus uwzględnić zmianę nazwy kolumny opisującej rok.
-    -   Przy tworzeniu P2 trzeba:
-        -   uwzględnić, że od edycji 2026 mamy bezpośrednio podaną w W3 nazwę zawodu kontynuacji;
-        -   dodać nowe informacje o studiach: formę, lokalizację uczelni, ale także nazwę uczelni/filii i kierunku studiów, bo i na te ostatnie było zgłaszane zapotrzebowanie (w szczególności w kontekście raportów szkolnych).
-    -   Przy tworzeniu P3 trzeba:
-        -   **z głębokim namysłem** zaimplementować na nowo obliczanie miesięcznych wynagrodzeń, uwzględniając informacje o długości trwania danej umowy w ramach miesiąca i - gdy jest dostępna - o wymiarze etatu;
-        -   dodać kolumny opisującą wymiar etatu i długość zatrudnienia w ramach miesiąca - **wymaga głębszego namysłu**, jak je konstruować w sytuacjach, gdy ktoś ma wiele umów w miesiącu;
-        -   uwzględnić dane z KRUS (W32, W33) przy tworzeniu zmiennej PRACA oraz dodać kolumnę opisującą ROLA_UBEZP;
-        -   dodać informację o powiecie kontynuacji nauki - do zastanowienia się, czy oddzielnie w odniesieniu do szkół z SIO i uczelni, czy tylko jedna kolumna i jakie reguły wychodzenia na jedną wartość, gdyby ktoś okazał się uczyś w kilku powiatach jednocześnie;
-        -   w kolumnie opisujące studiowanie dodać informację o formie studiów;
-        -   dodać kolumny opisujące dyplomy zawodowe i maturę.
-    -   Nowa tabela (tabele? bo może matura oddzielnie ze względu na bardzo złożoną strukturę) pośrednia na wyniki procentowe egzaminów.
-    -   Nowa tabela (tabele?) zawierająca informacje o niepełnosprawnościach i dostosowaniach na egzaminach;
-        -   być może do usunięcia w przyszłości, jeśli w toku analiz wyjdziemy na sposób tworzenia jakichś satysfakcjonujących nas wskaźników opisujących ogólnie absolwenta, i jako takich dających się dołączyć do P4.
+-   Przetestować zgodność z danymi z wcześniejszych edycji.
 
 ## Zmiany w w strukturze tabel *wejściowych*
 
@@ -39,6 +25,7 @@
     -   Nowe pliki z tabelami wejściowymi:
         -   *W27.csv* - wyniki procentowe egzaminu ósmoklasisty,
         -   *W28.csv* - wyniki procentowe matury,
+        -   *W29.csv* - mapowanie kraju pochodzenia na (bardziej użyteczny analitycznie) region,
         -   *W30.csv* - słownik uczelni z POL-on:
             -   tworzony przy pomocy nowo dodanej funkcji `przygotuj_dane_do_w30()` (p. niżej),
         -   *W31.csv* - orzeczenia o niepełnosprawności z SIO,
@@ -49,6 +36,8 @@
         -   Zmiany w tabeli *w16*:
             -   Nowa kolumna `LP` ujednoznaczniająca rekordy o tych samych kombinacja wartośći (`ID_ABS`, `ROK_ABS`, `ID_PLATNIKA`, `ROK_SKLADKA_MIES_SKLADKA`, `KOD_ZUS`), gdyż ze względu na informacje o wymiarze etatu i okresie przepracowanym w ramach miesiąca odstąpiono od prostej agregacji w ramach takich kombinacji wartości;
             -   Nowa kolumna `UDZIAL_DNI_ZATR_MIES`, obliczana na podstawie kolumn `DATA_OD_UBEZP`, `DATA_DO_UBEZP` z pliku *W16.csv* i umieszczana w bazie zamiast nich,
+                -   Należy miec świadomość, że niektóre rekordy nie mają podanych wartości `DATA_OD_UBEZP`, `DATA_DO_UBEZP` - w zdecydowanej większości przypadków ze względu na to, że opisują specyficzne sytuacje (których nie klasyfikujemy jako prace), dla których nie mają one sensu, choć zdarzają się też, na szczęście nieliczne, po prostu braki danych - w związku z czym `UDZIAL_DNI_ZATR_MIES` jest dla nich brakiem danych;
+                -   W specjalny sposób obsługiwany jest tu kod składki 1240 (urlop macierzyński), który ma przypisywany `UDZIAL_DNI_ZATR_MIES` równy 1, choć w danych nie ma nigdy podanych wartości `DATA_OD_UBEZP`, `DATA_DO_UBEZP` (ale chcemy, aby - z pewnymi zastrzeżeniami - uwzględniać rekordy opisujące te składki przy obliczaniu *pełnomiesięcznych* wynagrodzeń);
             -   Nowa kolumna `WYMIAR_ZATR`, obliczana na podstawie kolumn `WYMIAR_ZATR_LICZNIK`, `WYMIAR_ZATRUDNIENIA_MIANOWNIK` z pliku *W16.csv* i umieszczana w bazie zamiast nich;
                 -   Dla kodów ZUS 1110, 1111, 1112, 1113, 1114, 1120 (wojsko), 1130 (Policja), 1131 (agencje wywiadu), 1132 (Straż Graniczna) i 1133 (Państwowa Straż Pożarna) jeśli w danych nie podano wymiaru etatu, to jest przyjmowane, że jest to pełen etat;
                 -   Choć nominalnie również służby, zatrudnienie w których opisywane jest kodami 1134 (Służba Celno-Skarbowa), 1135 (CBA i kontrwywiad) i 1140 (Służba Więzienna), co do zasady zatrudniają w pełnym wymiarze godzin, jednak są tu dopuszczalne wyjątki, a wysokość składek, dla których brak jest danych o wymiarze, jest w danych wyraźnie niższa niż dla tych składek, dla których podano wartość wymiaru jako pełen etat (również przy kontroli szkoły), więc w przypadku tych kodów nie dokonuje się takiej imputacji.
@@ -59,7 +48,94 @@
     -   `tabele_wejsciowe()`
 -   Funkcja `przygotuj_dane_do_w26()` uzyskała możliwość wykorzystania danych o szkołach eksportowanych w całości z hurtowni SIO, dzięki czemu można mieć w W26 dostęp do prawdziwych (a nie tylko sztucznie multiplikowanych; inna sprawa, że one się w czasie specjalnie nie zmieniają) danych o nazwach, lokalizacjach itp. szkół.
 -   Nowa funkcja `przygotuj_dane_do_w30()`, pozwalająca przygotować zawartość tabeli W30 na podstawie plików *SUCZELNIA.csv*, *W12.csv* i *W25.csv* oraz informacji o uczelniach i ich filiach pozyskanych z publicznego API RAD-on (https://radon.nauka.gov.pl/dane/instytucje-systemu-szkolnictwa-wyzszego-i-nauki i https://radon.nauka.gov.pl/dane/filie-instytucji-systemu-szkolnictwa-wyzszego-i-nauki).
-    -   Na podobieństwo tabeli W26, tabelę W30 zaprojektowano jako przechowującą informacje o instytucjo-latach akademickich.
+    -   Na podobieństwo tabeli W26, tabelę W30 zaprojektowano jako przechowującą informacje o instytucjo-latach akademickich;
+-   Nowy plik *W21aneks.csv* zawierający brakujące przypisania kodów kwalifikacji do kodów zawodów (które udało się odtworzyć);
+    -   `wczytaj_tabele_wejsciowe()` przekształca kody kwalifikacji z *W4.csv*, *W8.csv*, *W10.csv* i *W21.csv*, aby usunąć oboczności ich zapisu (zera wiodące w części cyfrowej kodu, dopisywanie kropki na końcu);
+-   Adekwatnie zmodyfikowano przetwarzanie danych w toku tworzenia tabel *pośrednich*:
+    -   Przy tworzeniu *p1* brane są pod uwagę tylko te rekrody z *w810*, które opisują uzyskanie certyfikatu; uwzględniono też zmiany nazw kolumn opisujących rok;
+    -   Przy tworzeniu *p2* wykorzystywana jest nazwa zawodu kontynuacji, dostępna od edycji 2026 bezpośrednio w *w3*;
+    -   Przy tworzeniu *p2* i *p3* uwzględniono, że większość charkaterystyk szkół może się zmieniać w czasie.
+-   Przy wczytywaniu danych do bazy z pliku *W15.csv* pomijane są rekordy z brakami danych w kolumnie `TERYT` - i tak zawsze były one usuwane na samym początku przetwarzania danych o adresach podczas tworzenia tabel *pośrednich*.
+
+## Zmiany w strukturze tabel pośrednich
+
+-   Id pracodawcy w *p5* może być porównywane pomiędzy absolwentami (wcześniej było dodatkowo anonimizowane w ten sposób, żeby nie można było identyfikować tego samego pracodawcy między absolwentami).
+-   W *p2* dodano kolumnę `nazwa_zaw_kont`, opisującą nazwę zawodu kontynuacji (gdy `kod_zaw_kont` nie jest brakiem danych):
+    -   Dla edycji do 2025 włącznie jest ona tworzona na podstawie mapowania stworzonego w oparciu o tabelę *w2*;
+    -   Dla edycji od 2026 w odniesieniu do rekordów pochodzących z tabeli *w3* jest ona brana bezpośrednio stamtąd, a w odniesieniu do rekordów pochodzących z *w4* i *w5* jest tworzona na podstawie mapowania stworzonego w oparciu o tabele *w2* i *w3*.
+-   Dla edycji od 2026 w *p2* dodano nowe zmienne opisujące studia: formę, lokalizację (powiat) uczelni, nazwę uczelni/filii oraz kierunku studiów;
+-   Przy tworzeniu *p2* i *p3* data zakończenia studiów jest brana z `data_do_stu` albo z `data_skresl_stu`, w zależności od tego, która jest adekwatna (a nie z samego `data_do_stu`) i dopiero następnie imputowana wartością `imputujDateKoncaStudiow`.
+    -   To jest naprawiony błąd (z tego powodu jest też wspomniany w sekcji o błędach poniżej).
+-   W *p3* dodano kolumny `matura` i `dyplom_zaw`, opisujące, czy w danym miesiącu ktoś miał już zdaną maturę/certyfikaty lub dyplomy zawodowe;
+    -   Przy konstruowaniu `dyplom_zaw` brane są pod uwagę certyfikaty/dyplomy **tylko w zawodzie wyuczonym danego absolwenta**;
+    -   Przy konstruowaniu zmiennych używane są również rekordy opisujące uzyskanie matury *przed ukończeniem szkoły* (jako absolwent której dana osoba została objęta monitoringiem);
+    -   Przy konstruowaniu zmiennych używane są tylko rekordy opisujące uzyskanie dyplomu zawodowego nie wcześniej niż w roku ukończeniem szkoły (jako absolwent której dana osoba została objęta monitoringiem);
+        -   Obie powyższe reguły są zgodne z tymi stosowanymi przez `LOSYwskaznik::dodaj_wskazniki_dyplomy()`;
+    -   Arbitralnie przyjmuje się, że tytuł czeladnika absolwenci uzyskują w czerwcu roku ukończenia szkoły.
+-   Dla edycji od 2026 w *p3*:
+    -   Dodano kolumnę `liczba_skladek` opisującą, na podstawie agregacji ilu różnych rekordów z *w16* powstał dany rekord w *p3*;
+    -   Dodano kolumny opisujące wysokość wynagrodzeń skorygowaną o długość trwania okresu ubezpieczenia w danym miesiącu (`wynagrodzenie_mies` i `wynagrodzenie_mies_uop`) oraz - tylko dla umów o pracę - również o wymiar etatu (`wynagrodzenie_stawka`);
+        -   Analogicznie do praktyki stosowanej od edycji 2025 w odniesieniu do zmiennych opisujących wynagrodzenia, wartości nowych zmiennych też są przycinane na wartościach kwintyli 0.005 i 0.995 swojego rozkładu w ramach przecięcia kohorty absolwentów i roku kalendarzowego (w tabeli zapisywane są również oryginalne zmienne, przechowujące wartości przed przycięciem);
+        -   Przy obliczaniu wynagrodzeń skorygowanych o długość trwania okresu ubezpieczenia w danym miesiącu pomijane są rekordy, które nie miały w danych wejściowych podanych wartości `DATA_OD_UBEZP`, `DATA_DO_UBEZP`, **z wyjątkiem** tych opisujących urlop macierzyński (`KOD_ZUS` równe 1240), które wliczane są - z założeniem, że obejmowały pełen miesiąc - **jeśli tylko** są jedyną składką od danego płatnika w danym miesiącu opisującą sytuację, którą klasyfikujemy jako jakąś formę pracy; 
+    -   Dodano kolumny opisującą wymiar etatu i długość zatrudnienia w ramach miesiąca:
+        -   Zmienna `wymiar_zatr` zawiera kategoryzację opisującą przecięcie wymiaru etatu z liczbą miejsc zatrudnienia i jest uzupełniana przez `sr_udzial_dni_zatr` i `sr_udzial_dni_zatr_uop`, które pozwalają odfiltrować miesiące, kiedy ktoś nie pracował w tych samych miejscach przez cały miesiąc;
+        -   Proponowany zestaw zmiennych i sposób ich konstrukcji może ulec zmienia po przeprowadzeniu konsultacji;
+    -   W kolumnie `praca` dodano wartość 8, opisującą osoby ubezpieczone w KRUS, ale nieopłacające ubezpieczeń w ZUS (w przypadku zbiegu ubezpieczeń, ZUS nadpisuje KRUS)
+    -   Dodano kolumnę `ubezp_krus` opisującą rolę osoby ubezpieczonej w KRUS;
+        -   W stosunku do `rola_ubezp` z tabeli *w32* braki danych zostały zastąpione wartością 9;
+    -   W kolumnach `choroba` i `wypadek` zostały uwzględnione dane z KRUS a wartość tych kolumn koduje teraz również źródło danych;
+    -   Dodano kolumne `teryt_pow_szk_kont` opisującę powiat kontynuacji nauki:
+        -   Inna możliwa (choć rzadka) przyczyna występowania braków danych w tej zmiennej pomimo kontynuowania nauki, to studiowanie w znajdującej się za granicą filii polskiej uczelni;
+    -   Kolumna `nauka_studia` koduje formę studiów (stacjonarne vs niestacjonarne);
+-   Tylko dla edycji 2026 w *p3* dodatkowo obliczana jest zmienna `status_bez_krus`, przechowująca status obliczony jak we wcześniejszych edycjach - na potrzeby łatwych porównań do raportu metodologicznego.
+-   W *p4* dodano kolumnę `zmarl_mies_od_ukoncz` opisującą miesiąc zgonu absolwenta (i ogólniej pozwalającą zidentyfikować absowlentów, którzy zmarli, bez konieczności sięgania do *p3*):
+    -   W praktyce wartości niebędące brakami danych występują w niej dopiero od edycji 2026.
+-   Dla edycji od 2026 w *p4*:
+    -   Dodano kolumny `kraj_pochodzenia`, `region_pochodzenia`, `forma_ksztalc` i `nauka_poza_szkola` opisujące odpowiednio kraj pochodzenia, formę kształcenia w szkołach policealnych i dla dorosłych oraz objęcie edukacją domową:
+        -   W przypadku nie-obcokrajowców `kraj_pochodzenia` jest pustym ciągiem znaków, ale zdarzają się też obcokrajowcy, dla których `kraj_pochodzenia` jest równy "POLSKA";
+        -   Operacyjna definicja *nauki poza szkołą* (przyjęta przez CIE, podczas generowania *w2*) to realizowanie nauki poza szkołą przez co najmniej połowę okresu nauki w szkole, jako absolwent której dana osoba została objęta monitoringiem.
+    -   Zmienna `zawod_sr_wynagrodzenie` obliczana jest na podatawie zmiennej `wynagrodzenie_stawka`.
+    -   Zmienne zawierające wskaźniki średnich wynagrodzeń są obliczone na podstawie zmiennej `wynagrodzenie_stawka` i mają nazwy zmodyfikowane tak, aby na to wskazywały.
+        -   Podniesiono zależność od *LOSYwskazniki* do wersji 0.8.0
+-   Tylko dla edycji 2026 w *p4* obliczane są zarówno wskaźniki średnich wynagrodzeń oparte o `wynagrodzenie`, jak i oparte o `wynagrodzenie_stawka`.
+-   Dla edycji od 2026 w *p5* (analogicznie jak do *p3*):
+    -   Dodano kolumnę `liczba_skladek` opisującą, na podstawie agregacji ilu różnych rekordów z *w16* powstał dany rekord w *p5*;
+    -   Dodano kolumny opisujące wysokość wynagrodzeń skorygowaną o długość trwania okresu ubezpieczenia w danym miesiącu (`wynagrodzenie_mies` i `wynagrodzenie_mies_uop`) oraz - tylko dla umów o pracę - również o wymiar etatu (`wynagrodzenie_stawka`);
+    -   Dodano kolumny opisujące wymiar etatu (`wymiar_zatr`) i długość zatrudnienia w ramach miesiąca (`sr_udzial_dni_zatr` i `sr_udzial_dni_zatr_uop`).
+-   W *p6* szkoły mogą już mieć (i miewają) różne dane w poszczególnych latach szkolnych.
+    -   Uwaga, dotyczy to wszystkich danych poza typem szkoły!
+-   Dla edycji od 2026 *p6* zawiera również dane uczelni, w których absolwenci kontynuowali naukę:
+    -   Nowe kolumny: `id_ucz` - identyfikator uczelni/filii w POL-on, `podm_nadzrz_id` - identyfikator uczelni w POL-on dla rekordów opisujących filie uczelni (identyfikatory w POL-on są ciągami znaków, więc nie ma sensu przechowywać ich w tych samych kolumnach, co id RSPO szkół);
+    -   Nowe kolumny: `typ_ucz` (akademicka vs zawodowa), `kraj_ucz` (mamy w danych również zagraniczne filie polskich uczelni), `teryt_pow_uczelni` (powiat lokalizacji uczelni - oddzielnie aby nie rezygnować z informacji na poziomie gminy dla szkół z RSPO), `rodzaj_gmi_ucz` (typ gminy/części gminy, jako uzupełnienie informacji o powiacie);
+    -   Dane przypisane do dotychczasowych kolumn: `organ_prowadzacy_typ`, `typ_szk`, `typ_szk_sdd`, `szk_ma_abs`, `rok_szk` (uwaga, tu uznacza rok akademicki, rozpoczynający się w październiku, a nie we wrześniu!), `nazwa_szk`, `wojewodztwo_szk`, `powiat_szk`, `ulica_szk`, `pna`, `poczta`, `organ_prowadzacy_nazwa`, `miejsce_w_strukt`, `jedn_nadrz_typ`;
+-   Nowe tabele pośrednie dla edycji od 2026:
+    -   *p7* - wykonywane zawody po miesiącach (potencjalnie wiele rekordów opisujących absolwenta w jednym miesiącu):
+        -   Zawiera zmienne opisujące (sumaryczną!) długość trwania okresu składkowego w ramach miesiąca (uwzględniającą każdą składkę z równą wagą i ważącą wymiarem zatrudnienia - jeśli jest dostępny) oraz PKD pracodawcy, ale nie wynagrodzenia;
+        -   Należy mieć na uwadze, że przed 2022 r. dane o wykonywanym zawodzie są bardzo *dziurawe* (obowiązek ich raportowania wprowadzono w maju 2021 r., a nawet współcześnie często nie są podawane w przypadku umów-zleceń itp.).
+    -   *p8* - wyniki punktowe egzaminów: zarówno ósmoklasisty, matury, jak i zawodowych:
+        -   Zawiera również informacje o zwolnieniach, unieważnieniach itp.;
+        -   W formie *długiej* - każdy przedmiot/część egzaminu tworzy oddzielny rekord;
+        -   Zestaw wypełnionych kolumn różni się w pewnym stopniu w zależności od egzaminu.
+    -   *p9* - informacje o niepełnosprawności:
+        -   Pod uwagę brane są jedynie orzeczenia obowiązujące (choć częściowo) przed momentem ukończenia szkoły, jako absolwent której dana osoba została objęta monitoringiem;
+        -   Przy obliczaniu łącznej długości trwania orzeczeń brany jest pod uwagę tylko okres do 30 czerwca roku ukończenia szkoły, jako absolwent której dana osoba została objęta monitoringiem.
+        -   Przy obliczaniu łącznej długości trwania orzeczeń brany jest pod uwagę tylko okres od 1 września roku przypadającego na: (rok zostania absolwentem - nominalna liczba lat nauki w szkole danego typu).
+        -   Łączny czas trwania orzeczeń *równy co najmniej 2 lata* to w praktyce co najmniej 660 dni.
+        -   Informacje o dostosowaniach na egzaminach, uwzględniane są tylko z egzaminów, które odbyły się nie później niż w roku, w kótrym dana osoba została absolwentem.
+-   Zmienieniono domyślną wartość argumentu `okresyP2` w `przygotuj_tabele_posrednie()`, aby dla edycji od 2026 pokrywała pełen *siedmioletni* okres obserwacji.
+
+## Ulepszona diagnostyka
+
+-   `wczytaj_tabele_wejsciowe()` kontroluje,
+    -   czy wszystkie kody kwalifikacji pojawiające się w *W4.csv*, *W8.csv* i *W10.csv* mają przypisanie do kodów zawodów w *W21.csv*;
+    -   czy wszystkie identyfikatory kierunków studiów pojawiające się w *W12.csv* mają przypisanie do dziedzin/dyscyplin w *W13.csv*.
+
+## Usprawnienia
+
+-   `wczytaj_tabele_wejsciowe()` otrzymała opcjonalny argument `rokMonitoringu`, a w `przygotuj_tabele_posrednie()` istniejący wcześniej obowiązkowy argument `rokMonitoringu` stał się opcjonalny:
+    -   W obu funkcjach domyślna wartość argumentu (brak danych) wskazuje, że jego wartość ma zostać zgadnięta na podstawie danych z *W1* (tak, jak do tej pory robiła ta `wczytaj_tabele_wejsciowe()`, przy czym oczywiście `przygotuj_tabele_posrednie()` zgaduje na podstawie danych wczytanych do bazy);
+-   `przygotuj_tabele_posrednie()` aktywniej zwalnia pamięć;
+-   `przygotuj_tabele_posrednie()` otrzymała nowy argument `zapisujPoKazdejTabeliPosredniej` pozwalający zapisywać na dysku stan tworzonych tabel *pośrednich* w miarę postępu procesu ich tworzenia - tak aby w razie, gdy proces *wybuchnie* (w szczególności w wyniku niedostatecznej ilości dostępnego RAMu) nie zostawać z niczym.
 
 ## Naprawione błędy
 
@@ -67,7 +143,11 @@
     -   W efekcie `zidentyfikuj_szkolo_lata_w_danych()` uwzględnia, że ktoś mógł rozpocząć naukę w szkole (w której kontynuuje naukę) również w roku, w którym prowadzona jest dana edycja monitoringu (o ile zrobił to w semestrze letnim);
 -   `wczytaj_tabele_wejsciowe()` potrafi sobie radzić z nieliczbowymi kodami zawodów;
 -   `porownaj_liczbe_wierszy_w_tabelach_wejsciowych()` przechwytuje argumenty korzystając z `list(...)` zamiast `as.list(...)`;
--   Uzupełniono kilka miejsc z brakującym maskowanie `.data$` w wywołaniach funkcji pakietu *dplyr*.
+-   `przygotuj_tabele_posrednie()` obliczając zmienną `zawod_sr_wynagrodzenie` (do tabeli *p4*) pomija zerowe wynagrodzenia;
+-   Uzupełniono kilka miejsc z brakującym maskowanie `.data$` w wywołaniach funkcji pakietu *dplyr*;
+-   `usun_duplikaty()` poprawnie raportuje liczbę rekordów usuniętych z *p4* (zamiast powtarzać informację o liczbie unikalnych absolwento-szkół, którzy zostali usunięci);
+-   Przy tworzeniu *p2* i *p3* data zakończenia studiów jest brana z `data_do_stu` albo z `data_skresl_stu`, w zależności od tego, która jest adekwatna (a nie z samego `data_do_stu`) i dopiero następnie imputowana wartością `imputujDateKoncaStudiow`:
+    -   To niestety oznacza, że we wszystkie dotychczas tworzonych tabelach *pośrednicg* niesłusznie *przedłużano* (i to do końca okresu objętego monitoringiem) studiowanie absolwentom, którzy zostali skreśleni z listy studentów; z drugiej strony, z wyjątkiem danych dla kohorty *w pięć lat od ukończenia szkoły*, takie przypadki występowały bardzo rzadko.
 
 # MLASdaneAdm 1.5.0 (21.11.2025)
 

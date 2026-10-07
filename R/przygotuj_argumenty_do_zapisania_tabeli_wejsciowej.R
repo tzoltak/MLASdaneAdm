@@ -92,6 +92,7 @@ przygotuj_argumenty_do_zapisania_tabeli_wejsciowej <- function(dane, tabela,
     )
   } else {
     kolumny <- list(
+      w29 = c("kraj_pochodzenia", "region_pochodzenia"),
       w1 = c("id_abs", "rok_abs", "kraj_pochodzenia"),
       typy_szkol = c("typ_szk"),
       w25 = c("teryt_pow", "powiat", "wojewodztwo", "nts", "makroregion",

@@ -17,7 +17,7 @@ przytnij_wynagrodzenia(
 \arguments{
 \item{dane}{ramka danych, typowo tabela \emph{pośrednia} P3}
 
-\item{zmKryterium}{ciąch znaków - nazwa zmiennej, na podstawie rozkładu
+\item{zmKryterium}{ciąg znaków - nazwa zmiennej, na podstawie rozkładu
 której mają zostać obliczone progi}
 
 \item{zmZastosuj}{opcjonalnie wektor ciągów znaków - nazwy zmiennych, których
