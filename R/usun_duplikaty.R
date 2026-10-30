@@ -29,7 +29,7 @@ usun_duplikaty <- function(x, p4 = NULL, duplikatWSzkole = TRUE,
             is.logical(duplikatWieleSzkol), length(duplikatWieleSzkol) == 1L,
             duplikatWieleSzkol %in% c(TRUE, FALSE),
             duplikatWSzkole | duplikatWieleSzkol)
-  if (is.list(x)) {
+  if (is.list(x) && !is.data.frame(x)) {
     stopifnot("Jeśli argumentem `x` przekazywana jest lista, argument `p4` powinien przyjąć wartość `NULL`." =
                 is.null(p4),
               "Lista przekazana argumentem `x` musi zawierać element o nazwie 'p4'." =
@@ -54,7 +54,6 @@ usun_duplikaty <- function(x, p4 = NULL, duplikatWSzkole = TRUE,
     stopifnot(is.data.frame(x), is.data.frame(p4),
               all(c("id_abs", "rok_abs", "id_szk") %in% names(p4)),
               !anyNA(p4[, c("id_abs", "rok_abs", "id_szk")]),
-              all(c("id_abs", "rok_abs") %in% names(p4)),
               !anyNA(x[, c("id_abs", "rok_abs")]))
     x <- list(x = x)
   }

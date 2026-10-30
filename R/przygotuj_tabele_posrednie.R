@@ -414,7 +414,8 @@ przygotuj_tabele_posrednie <- function(
                  by = c("id_abs", "rok_abs")) %>%
       select("id_abs", "rok_abs", "kod_zaw", "branza", "rodzaj_dyplomu",
              "dyplom_szczegoly", "rok", "miesiac", "dziedzina",
-             "dyscyplina_wiodaca", any_of("kierunek_stu"))
+             "dyscyplina_wiodaca", id_ucz = any_of("id_podmiotu"),
+             any_of("kierunek_stu"))
     # łączenie i wczytywanie do P1
     tabelePosrednie$p1 <- bind_rows(collect(t6),
                                     collect(t7),
@@ -695,7 +696,7 @@ przygotuj_tabele_posrednie <- function(
   }
   # P3 (dane miesięczne) #######################################################
   if (przygotujP3) {
-    cat("\nPrzygotowywanie tabeli P3 (może zająć 3-4 h):")
+    cat("\nPrzygotowywanie tabeli P3 (na danych z edycji ≥2026 może zająć 3-4 h ):")
     cat("\n- tworzenie wzorcowej struktury danych...")
     t1 <- tbl(con, "w1") %>%
       select(-any_of("kraj_pochodzenia")) %>%
@@ -1092,6 +1093,7 @@ przygotuj_tabele_posrednie <- function(
                 wypadek = as.integer(any(.data$wypadek, na.rm = TRUE)),
                 choroba = as.integer(any(.data$choroba, na.rm = TRUE)),
                 choroba_macierz = as.integer(any(.data$choroba_macierz, na.rm = TRUE)),
+                dane_z_zus_przerwy = TRUE,
                 .groups = "drop")
     if (rokMonitoringu >= 2026L) {
       t33 <- tbl(con, "w33") %>%
@@ -1109,6 +1111,7 @@ przygotuj_tabele_posrednie <- function(
                     as.integer(any(.data$rodzaj_swiadcz %in% c(1L, 3L), na.rm = TRUE)),
                   wypadek_krus =
                     as.integer(any(.data$rodzaj_swiadcz %in% c(2L, 4L), na.rm = TRUE)),
+                  dane_z_krus_swiadczenia = TRUE,
                   .groups = "drop")
       t17 <- t17 %>%
         full_join(t33,
@@ -1122,6 +1125,9 @@ przygotuj_tabele_posrednie <- function(
                                    .data$choroba_krus == 1L ~ 2L,
                                    .default = 0L)) %>%
         select(-c("wypadek_krus", "choroba_krus"))
+    } else {
+      t17 <- t17 %>%
+        mutate(dane_z_krus_swiadczenia = FALSE)
     }
     # składki ZUS
     if (rokMonitoringu < 2026L) {
@@ -1153,6 +1159,8 @@ przygotuj_tabele_posrednie <- function(
           wynagrodzenie = sum(.data$podst_maks, na.rm = TRUE),
           wynagrodzenie_uop = sum(.data$podst_maks[.data$etat], na.rm = TRUE),
           biernosc = any(.data$bierny_skladka, na.rm = TRUE),
+          dane_z_zus_skladki = TRUE,
+          dane_z_krus_skladki = FALSE,
           .groups = "drop")
     } else {
       t32 <- tbl(con, "w32") %>%
@@ -1169,6 +1177,7 @@ przygotuj_tabele_posrednie <- function(
                  ifelse(is.na(.data$ubezp_krus), 9L, .data$ubezp_krus)) %>%
         group_by(.data$id_abs, .data$rok_abs, .data$okres) %>%
         summarise(ubezp_krus = min(.data$ubezp_krus, na.rm = TRUE),
+                  dane_z_krus_skladki = TRUE,
                   .groups = "drop")
       t16m <- t16 %>%
         group_by(.data$id_abs, .data$rok_abs, .data$rok_skladka, .data$mies_skladka) %>%
@@ -1217,6 +1226,7 @@ przygotuj_tabele_posrednie <- function(
             sum(.data$wymiar_zatr[.data$etat], na.rm = TRUE) > 1 ~ 5L, # zatrudnienie na łącznie ponad pełen etat
             .default = 0L),
           biernosc = any(.data$bierny_skladka, na.rm = TRUE),
+          dane_z_zus_skladki = TRUE,
           .groups = "drop") %>%
         full_join(t32,
                   by = c("id_abs", "rok_abs", "okres")) %>%
@@ -1272,20 +1282,27 @@ przygotuj_tabele_posrednie <- function(
                   mutate(across(c(starts_with("wynagrodzenie"),
                                   starts_with("sr_udzial_")), as.numeric),
                          across(c("liczba_skladek"), as.integer),
+                         across(starts_with("dane_z_"),
+                                ~if_else(is.na(.), FALSE, .)),
                          across(-c("id_abs", "rok_abs",
                                    "rok_skladka", "mies_skladka", "okres",
                                    "emeryt_rencista", "niepelnosprawny",
                                    "teryt", starts_with("wynagrodzenie"),
                                    "liczba_skladek", starts_with("sr_udzial_"),
-                                   "wymiar_zatr", starts_with("powiat")),
+                                   "wymiar_zatr", starts_with("powiat"),
+                                   starts_with("dane_z_")),
                                 ~if_else(is.na(.), 0L, as.integer(.))),
-                         brak_danych_z_zus = FALSE) %>%
+                         brak_danych_z_zus = !(.data$dane_z_zus_skladki |
+                                                 .data$dane_z_zus_przerwy),
+                         brak_danych_z_krus = !(.data$dane_z_krus_skladki |
+                                                  .data$dane_z_krus_swiadczenia)) %>%
                   mutate(dziecko = case_when(.data$dziecko %in% 1L ~ 1L,
                                              .data$dziecko2 %in% 1L ~ 2L,
                                              .default = 0L),
                          biernosc_zus =
                            as.integer(.data$biernosc %in% 1L | .data$przerwa %in% 1L)) %>%
-                  select(-"dziecko2", -"przerwa", -"biernosc") %>%
+                  select(-"dziecko2", -"przerwa", -"biernosc",
+                         -starts_with("dane_z_")) %>%
                   rename(teryt_zam = "teryt") %>%
                   left_join(collect(tMlodoc),
                             by = c("id_abs", "rok_abs", "okres")),
@@ -1293,9 +1310,7 @@ przygotuj_tabele_posrednie <- function(
       left_join(t34512m,
                 by = c("id_abs", "rok_abs", "okres")) %>%
       mutate(teryt_zam = floor(.data$teryt_zam / 100),
-             brak_danych_z_zus =
-               if_else(is.na(.data$brak_danych_z_zus),
-                       TRUE, .data$brak_danych_z_zus),
+             across(starts_with("brak_danych_z_"), ~if_else(is.na(.), TRUE, .)),
              across(starts_with("nauka"), ~if_else(is.na(.), 0L, as.integer(.))),
              nauka_szk_abs =
                if_else(.data$okres <= (12L*.data$rok_abs + 6L), 1L, 0L)) %>%
@@ -1377,15 +1392,15 @@ przygotuj_tabele_posrednie <- function(
                   select("id_abs", "rok_abs", "okres", "dyplom_zaw"),
                 by = c("id_abs", "rok_abs", "okres")) %>%
       left_join(t1 %>%
-                  semi_join(tbl(con, "w2") %>%
-                              filter(.data$typ_szk %in%
-                                       c("Bednarska Szkoła Realna",
-                                         "Liceum ogólnokształcące",
-                                         "Technikum")) %>%
-                              select("id_abs", "rok_abs") %>%
-                              distinct() %>%
-                              collect(),
-                            by = c("id_abs", "rok_abs")) %>%
+                  # semi_join(tbl(con, "w2") %>%
+                  #             filter(.data$typ_szk %in%
+                  #                      c("Bednarska Szkoła Realna",
+                  #                        "Liceum ogólnokształcące",
+                  #                        "Technikum")) %>%
+                  #             select("id_abs", "rok_abs") %>%
+                  #             distinct() %>%
+                  #             collect(),
+                  #           by = c("id_abs", "rok_abs")) %>%
                   left_join(tMatura,
                             by = join_by(x$id_abs == y$id_abs, x$rok_abs == y$rok_abs,
                                          x$okres >= y$okres),
@@ -1394,9 +1409,14 @@ przygotuj_tabele_posrednie <- function(
                   select("id_abs", "rok_abs", "okres", "matura_zdana"),
                 by = c("id_abs", "rok_abs", "okres")) %>%
       select("id_abs", "rok_abs", "rok", "miesiac", "mies_od_ukoncz", "okres",
-             "status", "zmarl", "brak_danych_z_zus", "praca", "mlodociany",
-             "kont_mlodoc_prac", "bezrobocie":"nauka2",
-             "nauka_szk_abs", everything())
+             "status", "zmarl", "brak_danych_z_zus", any_of("brak_danych_z_krus"),
+             "praca", "mlodociany", "kont_mlodoc_prac", "bezrobocie":"nauka2",
+             "nauka_szk_abs", everything()) %>%
+      mutate(across(-any_of(c("id_abs", "rok_abs", "rok", "miesiac",
+                              "mies_od_ukoncz", "okres", "zmarl",
+                              "brak_danych_z_zus", "brak_danych_z_krus")),
+                    ~if_else(.data$zmarl, NA, .)),
+             teryt_pow_szk_kont = .data$teryt_pow_szk_kont / 100L)
     rm(t1, tDyplZaw, tMatura, t34512m, t15, t16m, t17)
     stopifnot(nrow(tabelePosrednie$p3) ==
                 nrow(distinct(select(tabelePosrednie$p3,
@@ -1411,6 +1431,9 @@ przygotuj_tabele_posrednie <- function(
                                zmGrupujace = c("rok_abs", "rok"),
                                q = c(0.005, 0.995), usun0 = TRUE,
                                zachowajOryginalne = TRUE)
+    } else {
+      tabelePosrednie$p3 <- tabelePosrednie$p3 %>%
+        select(-"brak_danych_z_krus")
     }
     if (rokMonitoringu == 2026L) {
       tabelePosrednie$p3 <- tabelePosrednie$p3 %>%
@@ -1536,13 +1559,13 @@ przygotuj_tabele_posrednie <- function(
                   mutate(abs_w_cke = TRUE),
                 by = c("id_abs", "rok_abs")) %>%
       left_join(tabelePosrednie$p3 %>%
-                  filter(.data$nauka %in% 1L & !(.data$nauka_studia %in% 1L)) %>%
+                  filter(.data$nauka %in% 1L & .data$nauka_studia %in% 0L) %>%
                   select("id_abs", "rok_abs") %>%
                   distinct() %>%
                   mutate(abs_w_sio = TRUE),
                 by = c("id_abs", "rok_abs")) %>%
       left_join(tabelePosrednie$p3 %>%
-                  filter(.data$nauka_studia %in% 1L) %>%
+                  filter(!(.data$nauka_studia %in% 0L)) %>%
                   select("id_abs", "rok_abs") %>%
                   distinct() %>%
                   mutate(abs_w_polon = TRUE),
@@ -1552,7 +1575,17 @@ przygotuj_tabele_posrednie <- function(
                   select("id_abs", "rok_abs") %>%
                   distinct() %>%
                   mutate(abs_w_zus = TRUE),
-                by = c("id_abs", "rok_abs")) %>%
+                by = c("id_abs", "rok_abs"))
+    if (rokMonitoringu >= 2026L) {
+      tabelePosrednie$p4 <- tabelePosrednie$p4 %>%
+        left_join(tabelePosrednie$p3 %>%
+                    filter(!.data$brak_danych_z_krus) %>%
+                    select("id_abs", "rok_abs") %>%
+                    distinct() %>%
+                    mutate(abs_w_krus = TRUE),
+                  by = c("id_abs", "rok_abs"))
+    }
+    tabelePosrednie$p4 <- tabelePosrednie$p4 %>%
       mutate(plec = factor(as.character(.data$plec), # pozbywanie się typu 'pq_plec'
                            unique(c("K", "M",
                                     sort(unique(.data$plec))))),
@@ -1736,7 +1769,7 @@ przygotuj_tabele_posrednie <- function(
       filter(!is.na(.data$kod_zaw_praca)) %>%
       left_join(t18,
                 by = "id_platnika") %>%
-      group_by(.data$id_abs, .data$rok_abs, .data$rok_skladka,
+      group_by(.data$id_abs, .data$rok_abs, .data$kod_zaw, .data$rok_skladka,
                .data$mies_skladka, .data$kod_zaw_praca, .data$pkd) %>%
       summarise(wynagrodzenie_mies =
                   sum(.data$podst_maks / .data$udzial_dni_zatr_mies, na.rm = TRUE),
@@ -1787,6 +1820,15 @@ przygotuj_tabele_posrednie <- function(
         pivot_longer(c("pisemna", "praktyczna"),
                      names_to = "forma_zdawania", values_to = "wynik_egz")
     ) %>%
+      left_join(tbl(con, "w2") %>%
+                  select("id_abs", "rok_abs", "kod_zaw") %>%
+                  collect(),
+                by = c("id_abs", "rok_abs")) %>%
+      left_join(tbl(con, "w21") %>%
+                  mutate(kwal_w_zaw_wyucz = TRUE) %>%
+                  rename(przedmiot_egz = "kod_kwal") %>%
+                  collect(),
+                by = c("przedmiot_egz", "kod_zaw")) %>%
       mutate(stan_zdawania_egz = factor(.data$stan_zdawania_egz,
                                         c("Przystąpił", "Finalista", "Laureat",
                                           "Nieobecny",
@@ -1796,10 +1838,14 @@ przygotuj_tabele_posrednie <- function(
              poziom_egz = factor(.data$poziom_egz,
                                  c("P", "R", "D", "Z", "N"),
                                  c("podstawowy", "rozszerzony", "dwujęzyczny",
-                                   "zestaw zadań w języku obcym", "ndt."))) %>%
-      select("id_abs", "rok_abs", "egzamin", "rok_egz":"przedmiot_egz",
-             "poziom_egz", forma_zdawania_egz = "forma_zdawania",
-             "stan_zdawania_egz", starts_with("dostos_"), everything())
+                                   "zestaw zadań w języku obcym", "ndt.")),
+             kwal_w_zaw_wyucz =
+               case_when(kwal_w_zaw_wyucz %in% TRUE ~ TRUE,
+                         !(kod_zaw %in% c(NA_integer_, 10101L, 10102L)) ~ FALSE)) %>%
+      select("id_abs", "rok_abs", "kod_zaw", "egzamin", "kwal_w_zaw_wyucz",
+             "rok_egz":"przedmiot_egz", "poziom_egz",
+             forma_zdawania_egz = "forma_zdawania", "stan_zdawania_egz",
+             starts_with("dostos_"), everything())
     if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
@@ -1868,8 +1914,8 @@ przygotuj_tabele_posrednie <- function(
                across(starts_with("niepelnosprawnosc"))) %>%
       summarise(orzeczenia_dlugosc = sum(.data$orzeczenie_dlugosc, na.rm = TRUE),
                 .groups = "drop") %>%
-      mutate(orzeczenia_min_2lata = .data$orzeczenia_dlugosc >= 660L,
-             across(where(is.logical), as.character)) %>%
+      mutate(across(where(is.logical), as.character),
+             orzeczenia_min_2lata = .data$orzeczenia_dlugosc >= 660L) %>%
       pivot_longer(cols = starts_with("niepelnosprawnosc"),
                    names_to = "niepelnosprawnosc", values_to = "czy_jest") %>%
       filter(.data$czy_jest != "FALSE") %>%
