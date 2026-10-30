@@ -1626,7 +1626,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
   }
   ## W30 (dane uczelni i ich filii) ############################################
   if ("W30" %in% names(tabeleWejsciowe)) {
-    tabeleWejsciowe$w30a <- tabeleWejsciowe$W30 %>%
+    tabeleWejsciowe$W30a <- tabeleWejsciowe$W30 %>%
       select("ID_PODMIOTU", "ID_UCZELNI", "RODZAJ_UCZELNI") %>%
       distinct()
     brakiW30 <- tabeleWejsciowe$W30 %>%
@@ -1659,6 +1659,8 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                                       by = c("ID_PODMIOTU", "ROK_AKAD"))
     tabeleWejsciowe$W30 <- semi_join(tabeleWejsciowe$W30, uczelnioLataAkadWDanych,
                                      by = c("ID_PODMIOTU", "ROK_AKAD"))
+    tabeleWejsciowe$W30a <- semi_join(tabeleWejsciowe$W30a, tabeleWejsciowe$W30,
+                                      by = c("ID_PODMIOTU"))
     if (nrow(brakujaceDaneUczelni) > 0L) {
       write.csv2(brakujaceDaneUczelni, "brakujace-dane-uczelni.csv",
                  row.names = FALSE, na = "", fileEncoding = "UTF-8")
@@ -1670,7 +1672,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
       do.call(dbExecute,
               args = c(list(conn = con),
                        przygotuj_argumenty_do_zapisania_tabeli_wejsciowej(
-                         tabeleWejsciowe$w30a, "w30a", wersja)))
+                         tabeleWejsciowe$W30a, "w30a", wersja)))
       do.call(dbExecute,
               args = c(list(conn = con),
                        przygotuj_argumenty_do_zapisania_tabeli_wejsciowej(

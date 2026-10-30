@@ -37,10 +37,8 @@
 #' choć podmiot, w którym się kształcili, przestał istnieć. Rekordy te są
 #' pomijane.
 #' @seealso [wczytaj_tabele_wejsciowe()], [przetworz_czesc_danych_o_uczelni()]
-#'
-#'
 #' @importFrom stats na.omit
-#' @importFrom utils read.csv read.csv2 write.csv2
+#' @importFrom utils read.csv write.csv2
 #' @importFrom dplyr %>% .data across anti_join arrange bind_rows case_when coalesce contains distinct everything filter group_by inner_join left_join mutate reframe rename rename_with select slice_tail summarise ungroup
 #' @export
 przygotuj_dane_do_w30 <- function(rokMonitoringu,
@@ -64,8 +62,7 @@ przygotuj_dane_do_w30 <- function(rokMonitoringu,
             "W katalogu roboczym nie ma pliku 'W25.csv'." =
               file.exists("W25.csv"),
             "W katalogu roboczym nie ma pliku 'SUCZELNIA.csv'." =
-              file.exists("W12.csv"),
-              file.exists("W12.csv"),
+              file.exists("SUCZELNIA.csv"),
             "W katalogu roboczym nie ma pliku 'W12.csv'." =
               file.exists("W12.csv"))
   if (!is.null(zapiszDoPliku)) {
@@ -73,7 +70,7 @@ przygotuj_dane_do_w30 <- function(rokMonitoringu,
   }
 
   message("Wczytywanie plików 'W12.csv', 'SUCZELNIA.csv' i 'W25.csv'...")
-  w12 <- read.csv2("W12.csv")
+  w12 <- arrow::read_csv2_arrow("W12.csv")
   stopifnot(all(c("ID_PODMIOTU", "ROK_ABS", "DATA_OD_STU", "CZY_UKONCZ_STU",
                   "DATA_DO_STU", "DATA_SKRESL_STU") %in% names(w12)))
   w12 <- w12 %>%
@@ -87,7 +84,7 @@ przygotuj_dane_do_w30 <- function(rokMonitoringu,
     summarise(DATA_MIN = min(.data$DATA_OD_STU, na.rm = TRUE),
               DATA_MAX = max(.data$DATA_DO, na.rm = TRUE),
               .groups = "drop")
-  suczelnia <- read.csv2("SUCZELNIA.csv")
+  suczelnia <- arrow::read_csv2_arrow("SUCZELNIA.csv")
   stopifnot(all(c("ID_UCZELNI", "ID_PODMIOTU", "DATA_OD", "DATA_DO",
                   "NAZWA_PODMIOTU", "TERYT_PODMIOTU",
                   "TERYT_GMI_PODMIOTU") %in% names(suczelnia)),
@@ -98,7 +95,7 @@ przygotuj_dane_do_w30 <- function(rokMonitoringu,
   suczelnia <- suczelnia %>%
     mutate(across(starts_with("DATA_"), ~as.Date(., format = "%d/%m/%Y")),
            TERYT_POW_PODMIOTU = 100L*.data$TERYT_PODMIOTU) %>%
-    left_join(read.csv2("W25.csv") %>%
+    left_join(arrow::read_csv2_arrow("W25.csv") %>%
                 rename_with(~paste0(., "_PODMIOTU")),
               by = "TERYT_POW_PODMIOTU") %>%
     select("ID_PODMIOTU", "DATA_OD", "DATA_DO", "TERYT_POW_PODMIOTU",
@@ -412,7 +409,7 @@ przygotuj_dane_do_w30 <- function(rokMonitoringu,
                   by = c("ID_PODMIOTU", "ROK_AKAD")) %>%
         select(-"ROK_AKAD") %>%
         distinct()
-      w12 <- read.csv2("W12.csv") %>%
+      w12 <- arrow::read_csv2_arrow("W12.csv") %>%
         filter(!is.na(.data$ID_KIERUNKU_STU))
       w12Popr <- w12 %>%
         anti_join(w12Niepasujace,

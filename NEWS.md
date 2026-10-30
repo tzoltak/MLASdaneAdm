@@ -1,4 +1,4 @@
-# MLASdaneAdm 2.0.0 (??.??.2026)
+# MLASdaneAdm 2.0.0 (??.11.2026)
 
 ## Do zrobienia
 
@@ -59,14 +59,17 @@
 
 ## Zmiany w strukturze tabel pośrednich
 
--   Id pracodawcy w *p5* może być porównywane pomiędzy absolwentami (wcześniej było dodatkowo anonimizowane w ten sposób, żeby nie można było identyfikować tego samego pracodawcy między absolwentami).
--   W *p2* dodano kolumnę `nazwa_zaw_kont`, opisującą nazwę zawodu kontynuacji (gdy `kod_zaw_kont` nie jest brakiem danych):
-    -   Dla edycji do 2025 włącznie jest ona tworzona na podstawie mapowania stworzonego w oparciu o tabelę *w2*;
-    -   Dla edycji od 2026 w odniesieniu do rekordów pochodzących z tabeli *w3* jest ona brana bezpośrednio stamtąd, a w odniesieniu do rekordów pochodzących z *w4* i *w5* jest tworzona na podstawie mapowania stworzonego w oparciu o tabele *w2* i *w3*.
+-   Dla edycji od 2026 w *p1* dodano kolumny `id_ucz` i `kierunek_stu` opisujące odpowiednio id POL-on/RAD-on uczelni albo jej filii i kierunek studiów, na których uzyskano dyplom (studiów).
+-   W *p2* dodano kolumnę `nazwa_zaw_kont`, opisującą nazwę zawodu kontynuacji (gdy `kod_zaw_kont` nie jest brakiem danych) **albo** nazwę kierunku studiów:
+    -   Nazwy zawodów kontynuacji nauki:
+        -   Dla edycji do 2025 włącznie są tworzone na podstawie mapowania stworzonego w oparciu o tabelę *w2*;
+        -   Dla edycji od 2026 w odniesieniu do rekordów pochodzących z tabeli *w3* nazwa zawodu jest brana bezpośrednio stamtąd, a w odniesieniu do rekordów pochodzących z *w4* i *w5* jest tworzona na podstawie mapowania stworzonego w oparciu o tabele *w2* i *w3*.
+    -   Nazwy kierunków studiów są dostępne od edycji 2026 (dla wcześniejszych edycji, w rekordach opisujących studia kolumna ta jest brakiem danych).
 -   Dla edycji od 2026 w *p2* dodano nowe zmienne opisujące studia: formę, lokalizację (powiat) uczelni, nazwę uczelni/filii oraz kierunku studiów;
 -   Przy tworzeniu *p2* i *p3* data zakończenia studiów jest brana z `data_do_stu` albo z `data_skresl_stu`, w zależności od tego, która jest adekwatna (a nie z samego `data_do_stu`) i dopiero następnie imputowana wartością `imputujDateKoncaStudiow`.
     -   To jest naprawiony błąd (z tego powodu jest też wspomniany w sekcji o błędach poniżej).
--   W *p3* dodano kolumny `matura` i `dyplom_zaw`, opisujące, czy w danym miesiącu ktoś miał już zdaną maturę/certyfikaty lub dyplomy zawodowe;
+-   W *p3* dodano kolumny `matura_zdana` i `dyplom_zaw`, opisujące, czy w danym miesiącu ktoś miał już zdaną maturę/certyfikaty lub dyplomy zawodowe;
+    -   `matura_zdana` obliczana jest dla absolwentów wszystkich szkół, ale `dyplom_zaw` tylko dla absolwentów szkół kształcących zawodowo (dla pozostałych jest brakiem danych);
     -   Przy konstruowaniu `dyplom_zaw` brane są pod uwagę certyfikaty/dyplomy **tylko w zawodzie wyuczonym danego absolwenta**;
     -   Przy konstruowaniu zmiennych używane są również rekordy opisujące uzyskanie matury *przed ukończeniem szkoły* (jako absolwent której dana osoba została objęta monitoringiem);
     -   Przy konstruowaniu zmiennych używane są tylko rekordy opisujące uzyskanie dyplomu zawodowego nie wcześniej niż w roku ukończeniem szkoły (jako absolwent której dana osoba została objęta monitoringiem);
@@ -84,20 +87,23 @@
     -   Dodano kolumnę `ubezp_krus` opisującą rolę osoby ubezpieczonej w KRUS;
         -   W stosunku do `rola_ubezp` z tabeli *w32* braki danych zostały zastąpione wartością 9;
     -   W kolumnach `choroba` i `wypadek` zostały uwzględnione dane z KRUS a wartość tych kolumn koduje teraz również źródło danych;
-    -   Dodano kolumne `teryt_pow_szk_kont` opisującę powiat kontynuacji nauki:
+    -   Dodano kolumnę `teryt_pow_szk_kont` opisującę powiat kontynuacji nauki:
         -   Inna możliwa (choć rzadka) przyczyna występowania braków danych w tej zmiennej pomimo kontynuowania nauki, to studiowanie w znajdującej się za granicą filii polskiej uczelni;
     -   Kolumna `nauka_studia` koduje formę studiów (stacjonarne vs niestacjonarne);
+    -   Dodano kolumnę `brak_danych_z_krus`, do kompletu z `brak_danych_z_zus`; 
+    -   Wszystkie kolumny oprócz `id_abs`, `rok_abs`, `rok`, `miesiac`, `mies_od_ukoncz`, `okres`, `zmarl`, `brak_danych_z_zus` i `brak_danych_z_krus` zamieniane są na braki danych, jeśli `zmarl == TRUE`.
 -   Tylko dla edycji 2026 w *p3* dodatkowo obliczana jest zmienna `status_bez_krus`, przechowująca status obliczony jak we wcześniejszych edycjach - na potrzeby łatwych porównań do raportu metodologicznego.
 -   W *p4* dodano kolumnę `zmarl_mies_od_ukoncz` opisującą miesiąc zgonu absolwenta (i ogólniej pozwalającą zidentyfikować absowlentów, którzy zmarli, bez konieczności sięgania do *p3*):
     -   W praktyce wartości niebędące brakami danych występują w niej dopiero od edycji 2026.
 -   Dla edycji od 2026 w *p4*:
-    -   Dodano kolumny `kraj_pochodzenia`, `region_pochodzenia`, `forma_ksztalc` i `nauka_poza_szkola` opisujące odpowiednio kraj pochodzenia, formę kształcenia w szkołach policealnych i dla dorosłych oraz objęcie edukacją domową:
+    -   Dodano kolumny `kraj_pochodzenia`, `region_pochodzenia`, `forma_ksztalc`, `nauka_poza_szkola` i `absolwent_w_krus` opisujące odpowiednio kraj pochodzenia, formę kształcenia w szkołach policealnych i dla dorosłych, objęcie edukacją domową oraz to, czy jakiekolwiek dane dot. absolwenta wystąpiły w danych otrzymanych z KRUS:
         -   W przypadku nie-obcokrajowców `kraj_pochodzenia` jest pustym ciągiem znaków, ale zdarzają się też obcokrajowcy, dla których `kraj_pochodzenia` jest równy "POLSKA";
         -   Operacyjna definicja *nauki poza szkołą* (przyjęta przez CIE, podczas generowania *w2*) to realizowanie nauki poza szkołą przez co najmniej połowę okresu nauki w szkole, jako absolwent której dana osoba została objęta monitoringiem.
     -   Zmienna `zawod_sr_wynagrodzenie` obliczana jest na podatawie zmiennej `wynagrodzenie_stawka`.
     -   Zmienne zawierające wskaźniki średnich wynagrodzeń są obliczone na podstawie zmiennej `wynagrodzenie_stawka` i mają nazwy zmodyfikowane tak, aby na to wskazywały.
         -   Podniesiono zależność od *LOSYwskazniki* do wersji 0.8.0
 -   Tylko dla edycji 2026 w *p4* obliczane są zarówno wskaźniki średnich wynagrodzeń oparte o `wynagrodzenie`, jak i oparte o `wynagrodzenie_stawka`.
+-   Id pracodawcy w *p5* może być porównywane pomiędzy absolwentami (wcześniej było dodatkowo anonimizowane w ten sposób, żeby nie można było identyfikować tego samego pracodawcy między absolwentami).
 -   Dla edycji od 2026 w *p5* (analogicznie jak do *p3*):
     -   Dodano kolumnę `liczba_skladek` opisującą, na podstawie agregacji ilu różnych rekordów z *w16* powstał dany rekord w *p5*;
     -   Dodano kolumny opisujące wysokość wynagrodzeń skorygowaną o długość trwania okresu ubezpieczenia w danym miesiącu (`wynagrodzenie_mies` i `wynagrodzenie_mies_uop`) oraz - tylko dla umów o pracę - również o wymiar etatu (`wynagrodzenie_stawka`);
@@ -130,6 +136,12 @@
     -   czy wszystkie kody kwalifikacji pojawiające się w *W4.csv*, *W8.csv* i *W10.csv* mają przypisanie do kodów zawodów w *W21.csv*;
     -   czy wszystkie identyfikatory kierunków studiów pojawiające się w *W12.csv* mają przypisanie do dziedzin/dyscyplin w *W13.csv*.
 
+## Nowe funkcje
+
+-   `usun_nielegalne_zawody()` pozwala usunąć z tabel *pośrednich* (i nie tylko) absolwentów w zawodach, których formalnie nie można nauczać w szkole tego typu, jak przez nich ukończona;
+    -   Na potrzeby wykorzystania tej funkcji do pakietu dodano zbiór danych `zawodyTypySzkol`, zawierający zestawienie *legalnych* kombinacji wartości zawód-typ szkoły;
+-   `pobierz_dane_z_radonu()` pozwala pobrać dane z API RAD-onu i przekonać się, że niestety bez (nie zanonimizowanego) identyfikatora kierunku w danych z OPI nie jesteśmy w stanie w użyteczny sposób dołączyć do naszych danych o studiowaniu charakterystyk kierunków studiów z RAD-onu.
+
 ## Usprawnienia
 
 -   `wczytaj_tabele_wejsciowe()` otrzymała opcjonalny argument `rokMonitoringu`, a w `przygotuj_tabele_posrednie()` istniejący wcześniej obowiązkowy argument `rokMonitoringu` stał się opcjonalny:
@@ -147,7 +159,7 @@
 -   Uzupełniono kilka miejsc z brakującym maskowanie `.data$` w wywołaniach funkcji pakietu *dplyr*;
 -   `usun_duplikaty()` poprawnie raportuje liczbę rekordów usuniętych z *p4* (zamiast powtarzać informację o liczbie unikalnych absolwento-szkół, którzy zostali usunięci);
 -   Przy tworzeniu *p2* i *p3* data zakończenia studiów jest brana z `data_do_stu` albo z `data_skresl_stu`, w zależności od tego, która jest adekwatna (a nie z samego `data_do_stu`) i dopiero następnie imputowana wartością `imputujDateKoncaStudiow`:
-    -   To niestety oznacza, że we wszystkie dotychczas tworzonych tabelach *pośrednicg* niesłusznie *przedłużano* (i to do końca okresu objętego monitoringiem) studiowanie absolwentom, którzy zostali skreśleni z listy studentów; z drugiej strony, z wyjątkiem danych dla kohorty *w pięć lat od ukończenia szkoły*, takie przypadki występowały bardzo rzadko.
+    -   To niestety oznacza, że we wszystkie dotychczas tworzonych tabelach *pośrednich* niesłusznie *przedłużano* (i to do końca okresu objętego monitoringiem) studiowanie absolwentom, którzy zostali skreśleni z listy studentów; z drugiej strony, z wyjątkiem danych dla kohorty *w pięć lat od ukończenia szkoły*, takie przypadki występowały bardzo rzadko.
 
 # MLASdaneAdm 1.5.0 (21.11.2025)
 

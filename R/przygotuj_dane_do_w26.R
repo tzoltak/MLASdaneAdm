@@ -28,7 +28,7 @@
 #' jest jako *ukryty*
 #' @seealso [wczytaj_tabele_wejsciowe()], [zidentyfikuj_szkolo_lata_w_danych()]
 #' @importFrom stats setNames
-#' @importFrom utils read.csv2 write.csv2
+#' @importFrom utils write.csv2
 #' @importFrom dplyr %>% .data arrange bind_rows case_match distinct everything inner_join left_join mutate select rename_with
 #' @export
 przygotuj_dane_do_w26 <- function(rokMonitoringu,
@@ -77,14 +77,14 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
   }
 
   message("Wczytywanie plików 'W2.csv', 'W3.csv', 'W4.csv' i 'W5.csv'...")
-  w2 <- read.csv2("W2.csv")
+  w2 <- arrow::read_csv2_arrow("W2.csv")
   stopifnot(all(c("ID_SZK", "ROK_ABS") %in% names(w2)))
-  w3 <- read.csv2("W3.csv")
+  w3 <- arrow::read_csv2_arrow("W3.csv")
   stopifnot(all(c("ID_SZK_KONT", "DATA_OD_SZK_KONT",
                   "DATA_DO_SZK_KONT") %in% names(w3)))
-  w4 <- read.csv2("W4.csv")
+  w4 <- arrow::read_csv2_arrow("W4.csv")
   stopifnot(all(c("ID_SZK_KONT", "DATA_OD_KKZ", "DATA_DO_KKZ") %in% names(w4)))
-  w5 <- read.csv2("W5.csv")
+  w5 <- arrow::read_csv2_arrow("W5.csv")
   stopifnot(all(c("ID_SZK_KONT", "DATA_OD_KUZ", "DATA_DO_KUZ") %in% names(w5)))
   message("...zakończone.")
 
@@ -119,7 +119,7 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
 
   if (!is.null(rspoHurtownia)) {
     message("Wczytywanie pliku z danymi z RSPO...")
-    rspo <- read.csv2(rspoHurtownia)
+    rspo <- arrow::read_csv2_arrow(rspoHurtownia)
     brakujaceKolumny <- setdiff(c("ROK_SZK", names(kolumnyRSPO),
                                   kolumnyidOrgRejestr),
                                 names(rspo))
@@ -130,7 +130,7 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
     message("...zakończone.")
     rspo <- rspo[, unique(c("ROK_SZK", names(kolumnyRSPO), kolumnyidOrgRejestr))]
   } else{
-    rspo <- setNames(lapply(rspo, read.csv2), rspo)
+    rspo <- setNames(lapply(rspo, arrow::read_csv2_arrow), rspo)
     czyProblem <- FALSE
     message("Rok monitoringu: ", rokMonitoringu)
     message("Wczytywanie plików z danymi z RSPO:")
@@ -154,7 +154,7 @@ przygotuj_dane_do_w26 <- function(rokMonitoringu,
 
     if (!is.null(idOrgRejestr)) {
       message("Wczytywanie danych o idPodmiotu SIO organów prowadzących...")
-      idOrgRejestrDane <- read.csv2(idOrgRejestr)
+      idOrgRejestrDane <- arrow::read_csv2_arrow(idOrgRejestr)
       names(idOrgRejestrDane) <- toupper(names(idOrgRejestrDane))
       brakujaceKolumny <- setdiff(kolumnyidOrgRejestr, names(idOrgRejestrDane))
       if (length(brakujaceKolumny) > 0L) {
