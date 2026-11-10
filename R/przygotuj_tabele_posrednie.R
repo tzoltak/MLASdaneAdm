@@ -619,7 +619,7 @@ przygotuj_tabele_posrednie <- function(
                   mutate(teryt_pow_szk =
                            100L*floor(.data$teryt_gmi_szk / 1000L)) %>%
                   select(id_szk_kont = "id_szk", "rok_szk",
-                         typ_szk_kont = "typ_szk_sdd",
+                         typ_szk_kont = "typ_szk",
                          teryt_pow_kont = "teryt_pow_szk",
                          nazwa_szk_kont = "nazwa_szk") %>%
                   collect(),
@@ -1841,7 +1841,8 @@ przygotuj_tabele_posrednie <- function(
                                    "zestaw zadań w języku obcym", "ndt.")),
              kwal_w_zaw_wyucz =
                case_when(kwal_w_zaw_wyucz %in% TRUE ~ TRUE,
-                         !(kod_zaw %in% c(NA_integer_, 10101L, 10102L)) ~ FALSE)) %>%
+                         !(kod_zaw %in% c(NA_integer_, 10101L, 10102L)) &
+                           egzamin == "egzamin zawodowy" ~ FALSE)) %>%
       select("id_abs", "rok_abs", "kod_zaw", "egzamin", "kwal_w_zaw_wyucz",
              "rok_egz":"przedmiot_egz", "poziom_egz",
              forma_zdawania_egz = "forma_zdawania", "stan_zdawania_egz",
