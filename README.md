@@ -11,12 +11,11 @@ Pakiet służy do złączania danych z rejestrów, baz danych administracyjnych 
 Pakiet nie jest wypchnięty na CRAN, więc trzeba instalować go ze źródeł.
 
 Ponieważ jednak zawiera jedynie kod w R, nie ma potrzeby zaopatrywać się w kompilatory, itp.
+Instalację najprościej przeprowadzić wykorzystując pakiet *pak*:
 
-Instalację najprościej przeprowadzić wykorzystując pakiet *devtools*:
-
-``` r
-install.packages('devtools') # potrzebne tylko, gdy nie jest jeszcze zainstalowany
-devtools::install_github('tzoltak/MLASdaneAdm', build_opts = c("--no-resave-data"))
+```{r}
+install.packages('pak') # potrzebne tylko, gdy nie jest jeszcze zainstalowany
+pak::pak('tzoltak/LOSYwskazniki')
 ```
 
 Dokładnie w ten sam sposób można przeprowadzić aktualizację pakietu do najnowszej wersji.
