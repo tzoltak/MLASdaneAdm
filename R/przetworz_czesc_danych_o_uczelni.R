@@ -45,7 +45,7 @@ przetworz_czesc_danych_o_uczelni <- function(x, rokMonitoringu) {
                              .data$DATA_MAX, .data$DATA_DO),
            across(all_of(c("DATA_OD", "DATA_DO")),
                   ~data2rokszk(., max = rokMonitoringu - 1L,
-                               tekst = FALSE, akademicki = TRUE))) %>%
+                               akademicki = TRUE, tekst = FALSE))) %>%
     group_by(across(all_of(c(setdiff(names(x),
                                      c("DATA_OD", "DATA_DO", "DATA_LIKWIDACJI",
                                        "DATA_MIN", "DATA_MAX")),

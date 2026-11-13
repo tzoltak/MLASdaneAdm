@@ -1651,7 +1651,7 @@ wczytaj_tabele_wejsciowe = function(baza, folder = ".", wczytajDoBazy = TRUE,
                 .groups = "drop") %>%
       mutate(across(all_of(c("DATA_MIN", "DATA_MAX")),
                     ~data2rokszk(., max = rokMonitoringu - 1L,
-                                 tekst = FALSE, akademicki = TRUE))) %>%
+                                 akademicki = TRUE, tekst = FALSE))) %>%
       group_by(.data$ID_PODMIOTU) %>%
       reframe(ROK_AKAD = .data$DATA_MIN:.data$DATA_MAX) %>%
       mutate(ROK_AKAD = paste0(.data$ROK_AKAD, "/", .data$ROK_AKAD + 1L))

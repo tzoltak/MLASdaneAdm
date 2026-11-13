@@ -329,7 +329,7 @@ przygotuj_dane_do_w30 <- function(rokMonitoringu,
   uczelnieWDanych <- w12MinMax %>%
     mutate(across(all_of(c("DATA_MIN", "DATA_MAX")),
                   ~data2rokszk(., max = rokMonitoringu - 1L,
-                               tekst = FALSE, akademicki = TRUE))) %>%
+                               akademicki = TRUE, tekst = FALSE))) %>%
     group_by(.data$ID_PODMIOTU) %>%
     reframe(ROK_AKAD = .data$DATA_MIN:.data$DATA_MAX) %>%
     mutate(ROK_AKAD = paste0(.data$ROK_AKAD, "/", .data$ROK_AKAD + 1L))
@@ -400,7 +400,7 @@ przygotuj_dane_do_w30 <- function(rokMonitoringu,
                "DATA_OD_STU", "DATA_OD", "DATA_DO") %>%
         mutate(across(all_of(c("DATA_OD", "DATA_DO")),
                       ~data2rokszk(., max = rokMonitoringu - 1L,
-                                   tekst = FALSE, akademicki = TRUE))) %>%
+                                   akademicki = TRUE, tekst = FALSE))) %>%
         distinct() %>%
         group_by(across(everything())) %>%
         reframe(ROK_AKAD = .data$DATA_OD:.data$DATA_DO) %>%

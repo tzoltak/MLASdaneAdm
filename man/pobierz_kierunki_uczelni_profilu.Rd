@@ -4,16 +4,13 @@
 \alias{pobierz_kierunki_uczelni_profilu}
 \title{Przygotowanie danych do tabeli wejsciowej W33}
 \usage{
-pobierz_kierunki_uczelni_profilu(
-  idPodmiotu,
-  profil = c("ogólnoakademicki", "praktyczny")
-)
+pobierz_kierunki_uczelni_profilu(idPodmiotu, kodProfilu)
 }
 \arguments{
 \item{idPodmiotu}{ciąg znaków - unikalny identyfikator uczelni/filii uczelni
 prowadzącej studia}
 
-\item{profil}{ciąg znaków opisujący profil studiów}
+\item{kodProfilu}{liczba całkowita - kod profilu studiów}
 }
 \value{
 ramka danych zawierająca pobrane a API RAD-onu informacje

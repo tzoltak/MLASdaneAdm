@@ -4,7 +4,16 @@
 \alias{pobierz_dane_z_radonu}
 \title{Przygotowanie danych do tabeli wejsciowej W33}
 \usage{
-pobierz_dane_z_radonu()
+pobierz_dane_z_radonu(tryb = c("uczelnioProfile", "kierunki"))
+}
+\arguments{
+\item{tryb}{ciąg znaków opisujący, czego funkcja ma szukać w RAD-onie:
+"uczelnioProfile" określa unikalne kombinacje identyfikatora uczelni
+i profilu studiów i odpytuje RAD-on o wszystkie kierunki pasujące do każdej
+takiej kombinacji; "kierunki" określa unikalne kombinacji identyfikatora
+uczelni, nazwy kierunku i profilu studiów i odpytuje o nie RAD-on (problem
+może tu polegać na tym, że \emph{W12.csv} mamy raczej nazwy tzw. \emph{uruchomień},
+a nie nazwy kierunków, w sensie, w jakim posługuje się nią POL-on/RAD-on)}
 }
 \value{
 ramka danych
@@ -20,6 +29,25 @@ do RAD-on okazuje się mieć formę 1:n}. W szczególności studia na różnych
 poziomach często nazywają się dokładnie tak samo, \strong{co czyni efekty takiego
 łączenia raczej bezużytecznymi}. Niemniej funkcja umożliwia przynajmniej
 łatwe zrekonsstruowanie tego problemu.
+}
+\details{
+API RAD-on przy odpytywaniu go o kierunki z wykorzystaniem ich nazw
+\enumerate{
+\item szuka po nazwach kierunków, \strong{nie} po nazwach \emph{uruchomień}, ale 2) zwraca
+choćby częściowe dopasowania i 3) ignoruje wielkość liter.
+}
+
+Nazwy kierunków w danych monitoringu miewają inną konwencję zapisu wielkimi
+literami, niż te pobierane z API RAD-on - nie da się niestety jednoznacznie
+stwierdzić, czy to różnica znacząca, czy nie, ale fakt, że w danych z API
+RAD-onu w ogóle nie występują niektóre kombinacje identyfikatora uczelni
+i nazwy kierunku (pasowane z uwzględnieniem wielkości liter), jakie mamy
+w danych z OPI, sugeruje, że niekoniecznie. W związku z tym w trybie
+"uczelnioProfile" podczas przyłączania danych pobranych z RAD-onu do tych
+z pliku \emph{W12.csv}, porównanie nazw kierunków dokonywane jest z pominięciem
+wielkości znaków (technicznie: po zamianie nazw kierunków na pisane saymi
+wielkimi litereami). Może to jednak skutkować jakimiś fałyszywmi
+przypisaniami.
 }
 \seealso{
 \code{\link[=pobierz_kierunki_uczelni_profilu]{pobierz_kierunki_uczelni_profilu()}}

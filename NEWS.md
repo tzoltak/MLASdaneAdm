@@ -2,7 +2,7 @@
 
 ## Do zrobienia
 
--   Przetestować zgodność z danymi z wcześniejszych edycji.
+-  Przetestować zgodność z danymi z wcześniejszych edycji.
 
 ## Zmiany w w strukturze tabel *wejściowych*
 
@@ -65,6 +65,7 @@
         -   Dla edycji do 2025 włącznie są tworzone na podstawie mapowania stworzonego w oparciu o tabelę *w2*;
         -   Dla edycji od 2026 w odniesieniu do rekordów pochodzących z tabeli *w3* nazwa zawodu jest brana bezpośrednio stamtąd, a w odniesieniu do rekordów pochodzących z *w4* i *w5* jest tworzona na podstawie mapowania stworzonego w oparciu o tabele *w2* i *w3*.
     -   Nazwy kierunków studiów są dostępne od edycji 2026 (dla wcześniejszych edycji, w rekordach opisujących studia kolumna ta jest brakiem danych).
+-   W *p2* dodano kolumnę `rok_szk` pozwalającą łatwo łączyć ją z *p6*.
 -   Dla edycji od 2026 w *p2* dodano nowe zmienne opisujące studia: formę, lokalizację (powiat) uczelni, nazwę uczelni/filii oraz kierunku studiów;
 -   Przy tworzeniu *p2* i *p3* data zakończenia studiów jest brana z `data_do_stu` albo z `data_skresl_stu`, w zależności od tego, która jest adekwatna (a nie z samego `data_do_stu`) i dopiero następnie imputowana wartością `imputujDateKoncaStudiow`.
     -   To jest naprawiony błąd (z tego powodu jest też wspomniany w sekcji o błędach poniżej).
@@ -141,14 +142,17 @@
 
 -   `usun_nielegalne_zawody()` pozwala usunąć z tabel *pośrednich* (i nie tylko) absolwentów w zawodach, których formalnie nie można nauczać w szkole tego typu, jak przez nich ukończona;
     -   Na potrzeby wykorzystania tej funkcji do pakietu dodano zbiór danych `zawodyTypySzkol`, zawierający zestawienie *legalnych* kombinacji wartości zawód-typ szkoły;
--   `pobierz_dane_z_radonu()` pozwala pobrać dane z API RAD-onu i przekonać się, że niestety bez (nie zanonimizowanego) identyfikatora kierunku w danych z OPI nie jesteśmy w stanie w użyteczny sposób dołączyć do naszych danych o studiowaniu charakterystyk kierunków studiów z RAD-onu.
+-   `pobierz_dane_z_radonu()` pozwala pobrać dane z API RAD-onu i przekonać się, że niestety bez (nie zanonimizowanego) identyfikatora kierunku w danych z OPI nie jesteśmy w stanie w użyteczny sposób dołączyć do naszych danych o studiowaniu charakterystyk kierunków studiów z RAD-onu,
+-   `rokmiesiac2rokszk()` pozwala wygodnie konwertować miesiąc i rok na lata szkolne lub akademickie.
 
 ## Usprawnienia
 
 -   `wczytaj_tabele_wejsciowe()` otrzymała opcjonalny argument `rokMonitoringu`, a w `przygotuj_tabele_posrednie()` istniejący wcześniej obowiązkowy argument `rokMonitoringu` stał się opcjonalny:
     -   W obu funkcjach domyślna wartość argumentu (brak danych) wskazuje, że jego wartość ma zostać zgadnięta na podstawie danych z *W1* (tak, jak do tej pory robiła ta `wczytaj_tabele_wejsciowe()`, przy czym oczywiście `przygotuj_tabele_posrednie()` zgaduje na podstawie danych wczytanych do bazy);
 -   `przygotuj_tabele_posrednie()` aktywniej zwalnia pamięć;
--   `przygotuj_tabele_posrednie()` otrzymała nowy argument `zapisujPoKazdejTabeliPosredniej` pozwalający zapisywać na dysku stan tworzonych tabel *pośrednich* w miarę postępu procesu ich tworzenia - tak aby w razie, gdy proces *wybuchnie* (w szczególności w wyniku niedostatecznej ilości dostępnego RAMu) nie zostawać z niczym.
+-   `przygotuj_tabele_posrednie()` otrzymała nowy argument `zapisujPoKazdejTabeliPosredniej` pozwalający zapisywać na dysku stan tworzonych tabel *pośrednich* w miarę postępu procesu ich tworzenia - tak aby w razie, gdy proces *wybuchnie* (w szczególności w wyniku niedostatecznej ilości dostępnego RAMu) nie zostawać z niczym;
+-   W `data2rokszk()` argument `akademicki` może być wektorem
+    -   W sygnaturze funkcji zamieniono kolejność argumentów `tekst` i `akademicki`.
 
 ## Naprawione błędy
 

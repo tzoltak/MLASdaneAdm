@@ -4,7 +4,7 @@
 \alias{data2rokszk}
 \title{Zamiana daty w formacie "\%d-\%m-\%Y" na rok szkolny}
 \usage{
-data2rokszk(x, max, tekst = TRUE, akademicki = FALSE)
+data2rokszk(x, max, akademicki = FALSE, tekst = TRUE)
 }
 \arguments{
 \item{x}{wektor ciągów znaków zawierający daty w formacie "\%d-\%m-\%Y" lub
@@ -17,13 +17,13 @@ niezakończone okresy nauki (tj. "31-12-9999"), choć w danych występują też
 \emph{konkretne} daty wybiegające w przyszłość względem daty ich eksporu z SIO -
 zostaną przekodowane na rok szkolny, na który wskazuje wartość tego argumentu}
 
-\item{tekst}{wartość logiczna - czy zwrócony powinien zostać tekst z pełnym
-opisem roku szkolnego (np. "2023/2024"), czy liczba całkowita wskazującą
-\strong{pierwszy} rok kalendarzowy w ramach odpowiedniego roku szkolnego}
-
 \item{akademicki}{wartość logiczna - czy przypisanie ma zostać dokonane
 w odniesieniu do lat akademickich (rozpoczynających się 1 października),
 zamiast w odniesieniu do lat szkolnych (rozpoczynających się 1 września)?}
+
+\item{tekst}{wartość logiczna - czy zwrócony powinien zostać tekst z pełnym
+opisem roku szkolnego (np. "2023/2024"), czy liczba całkowita wskazującą
+\strong{pierwszy} rok kalendarzowy w ramach odpowiedniego roku szkolnego}
 }
 \value{
 wektor ciągów znaków lub wektor liczb całkowitych
@@ -42,5 +42,5 @@ data2rokszk(c("30-08-2023", "01-09-2023", "31-12-9999"),
 }
 \seealso{
 \code{\link[=okres2rokmiesiac]{okres2rokmiesiac()}}, \code{\link[=okres2rokszk]{okres2rokszk()}}, \code{\link[=okres2data]{okres2data()}},
-\code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}}, \code{\link[=data2okres]{data2okres()}}
+\code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}}, \code{\link[=data2okres]{data2okres()}}, \code{\link[=rokmiesiac2rokszk]{rokmiesiac2rokszk()}}
 }

@@ -174,7 +174,7 @@ pobierz_dane_z_radonu <- function(tryb = c("uczelnioProfile", "kierunki")) {
 #' na zadanej uczelni/filii, o zadanym profilu.
 #' @param idPodmiotu ciąg znaków - unikalny identyfikator uczelni/filii uczelni
 #' prowadzącej studia
-#' @param profil liczba całkowita - kod profilu studiów
+#' @param kodProfilu liczba całkowita - kod profilu studiów
 #' @returns ramka danych zawierająca pobrane a API RAD-onu informacje
 #' o kierunkach studiów i ich *uruchomieniach*
 #' @seealso [pobierz_dane_z_radonu()]

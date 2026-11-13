@@ -637,13 +637,16 @@ przygotuj_tabele_posrednie <- function(
       bind_rows(t12c) %>%
       group_by(.data$id_abs, .data$rok_abs, .data$okres) %>%
       arrange(.data$id_abs, .data$rok_abs, .data$okres, .data$kod_zaw) %>%
-      mutate(lp_kont = seq_len(n()),
-             teryt_pow_kont = .data$teryt_pow_kont / 100L,
+      mutate(lp_kont = seq_len(n())) %>%
+      ungroup() %>%
+      mutate(teryt_pow_kont = .data$teryt_pow_kont / 100L,
              forma_kont = factor(.data$forma_kont,
                                  unique(c("uczeń", "KKZ", "KUZ", "student"),
-                                        sort(unique(.data$forma_kont))))) %>%
-      ungroup() %>%
-      select("id_abs":"okres", "lp_kont", "zrodlo",
+                                        sort(unique(.data$forma_kont)))),
+             rok_szk = rokmiesiac2rokszk(.data$rok, .data$miesiac,
+                                         !is.na(.data$id_ucz_kont),
+                                         tekst = TRUE)) %>%
+      select("id_abs":"okres", "lp_kont", "rok_szk", "zrodlo",
              "id_szk_kont", "id_ucz_kont", everything())
     rm(t3c, t4c, t5c, t12c)
     if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
@@ -1744,11 +1747,15 @@ przygotuj_tabele_posrednie <- function(
         collect(t26) %>%
           mutate(across(where(is.character), as.character)), # pozbywanie się typów zdefiniowanych w bazie
         collect(t30) %>%
-          mutate(across(where(is.character), as.character))) # pozbywanie się typów zdefiniowanych w bazie
+          mutate(across(where(is.character), as.character))) %>% # pozbywanie się typów zdefiniowanych w bazie
+        mutate(id_szk_ucz = coalesce(as.character(.data$id_szk), .data$id_ucz))
     }
     tabelePosrednie$p6 <- tabelePosrednie$p6 %>%
-      mutate(organ_prowadzacy_teryt = .data$organ_prowadzacy_teryt / 100L) %>%
-      select("id_szk", any_of("id_ucz"), "szk_ma_abs":"typ_szk_rspo",
+      mutate(organ_prowadzacy_teryt = .data$organ_prowadzacy_teryt / 100L,
+             rok_abs = ifelse(.data$szk_ma_abs,
+                              as.integer(substring(.data$rok_szk, 6, 9)),
+                              NA_integer_)) %>%
+      select("id_szk", any_of("id_ucz"), "rok_abs", "szk_ma_abs":"typ_szk_rspo",
              starts_with("organ_rejestrujacy_"),
              "organ_sposob_ewidencjonowania", "rok_szk":"teryt_gmi_szk",
              "teryt_pow_szk", any_of(c("kraj_ucz", "rodzaj_gmi_ucz")),
@@ -1783,7 +1790,9 @@ przygotuj_tabele_posrednie <- function(
              mies_od_ukoncz = .data$okres - rokmiesiac2okres(.data$rok_abs, 6L)) %>%
       select("id_abs", "rok_abs", rok = "rok_skladka",
              miesiac = "mies_skladka", "mies_od_ukoncz", "okres",
-             everything())
+             everything()) %>%
+      mutate(pkd = ifelse(is.na(.data$pkd), "", .data$pkd),
+             kod_zaw0 = ifelse(is.na(.data$kod_zaw), 0L, .data$kod_zaw))
     if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }
@@ -1822,6 +1831,7 @@ przygotuj_tabele_posrednie <- function(
     ) %>%
       left_join(tbl(con, "w2") %>%
                   select("id_abs", "rok_abs", "kod_zaw") %>%
+                  distinct() %>%
                   collect(),
                 by = c("id_abs", "rok_abs")) %>%
       left_join(tbl(con, "w21") %>%
@@ -1835,14 +1845,16 @@ przygotuj_tabele_posrednie <- function(
                                           "Nie przeprowadzano egzaminu",
                                           "Unieważniony",
                                           "Zwolniony", "Przerwany")),
-             poziom_egz = factor(.data$poziom_egz,
+             poziom_egz = factor(ifelse(is.na(.data$poziom_egz),
+                                        "N", .data$poziom_egz),
                                  c("P", "R", "D", "Z", "N"),
                                  c("podstawowy", "rozszerzony", "dwujęzyczny",
                                    "zestaw zadań w języku obcym", "ndt.")),
              kwal_w_zaw_wyucz =
                case_when(kwal_w_zaw_wyucz %in% TRUE ~ TRUE,
                          !(kod_zaw %in% c(NA_integer_, 10101L, 10102L)) &
-                           egzamin == "egzamin zawodowy" ~ FALSE)) %>%
+                           egzamin == "egzamin zawodowy" ~ FALSE),
+             kod_zaw0 = ifelse(is.na(.data$kod_zaw), 0L, .data$kod_zaw)) %>%
       select("id_abs", "rok_abs", "kod_zaw", "egzamin", "kwal_w_zaw_wyucz",
              "rok_egz":"przedmiot_egz", "poziom_egz",
              forma_zdawania_egz = "forma_zdawania", "stan_zdawania_egz",
@@ -1963,7 +1975,10 @@ przygotuj_tabele_posrednie <- function(
                  .data$dostos_form_egz) %>%
         summarise(dostos_war_egz = any(.data$dostos_war_egz, na.rm = TRUE),
                   .groups = "drop")
-    )
+    ) %>%
+      group_by(.data$id_abs, .data$rok_abs) %>%
+      mutate(lp = seq_len(n())) %>%
+      ungroup()
     if (zapisujPoKazdejTabeliPosredniej) save(tabelePosrednie, file = "tabele-posrednie-temp.RData")
     cat(" zakończone. ", format(Sys.time(), "%Y.%m.%d %H:%M:%S"), sep = "")
   }

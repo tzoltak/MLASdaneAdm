@@ -22,5 +22,5 @@ data2okres("2026-08-06")
 }
 \seealso{
 \code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}} \code{\link[=okres2rokmiesiac]{okres2rokmiesiac()}}, \code{\link[=okres2rokszk]{okres2rokszk()}},
-\code{\link[=okres2data]{okres2data()}}, \code{\link[=data2rokszk]{data2rokszk()}}
+\code{\link[=okres2data]{okres2data()}}, \code{\link[=data2rokszk]{data2rokszk()}}, \code{\link[=rokmiesiac2rokszk]{rokmiesiac2rokszk()}}
 }

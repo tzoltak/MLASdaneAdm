@@ -35,5 +35,5 @@ okres2rokszk(c(24248, 24249), tekst = FALSE)
 }
 \seealso{
 \code{\link[=data2rokszk]{data2rokszk()}}, \code{\link[=okres2rokmiesiac]{okres2rokmiesiac()}}, \code{\link[=okres2data]{okres2data()}},
-\code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}}, \code{\link[=data2okres]{data2okres()}}
+\code{\link[=rokmiesiac2okres]{rokmiesiac2okres()}}, \code{\link[=data2okres]{data2okres()}} \code{\link[=rokmiesiac2rokszk]{rokmiesiac2rokszk()}}
 }
